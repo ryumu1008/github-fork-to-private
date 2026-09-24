@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Fork to Private</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --text-muted: #8b949e;
+      --primary: #238636;
+      --primary-hover: #2ea043;
+      --accent: #58a6ff;
+      --warning: #d29922;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 360px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background-color: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-icon {
+      font-size: 18px;
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-bright);
+    }
+
+    .version-tag {
+      font-size: 11px;
+      padding: 2px 6px;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border-radius: 10px;
+      font-family: monospace;
+    }
+
+    /* Nav Tabs */
+    .nav-tabs {
+      display: flex;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 8px;
+    }
+
+    .nav-tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .nav-tab:hover {
+      color: var(--text-bright);
+    }
+
+    .nav-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Content Area */
+    .content-area {
+      padding: 16px;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Repo Card */
+    .repo-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .repo-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      word-break: break-all;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .repo-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      font-weight: normal;
+    }
+
+    .badge-fork {
+      background: rgba(187, 128, 9, 0.2);
+      color: var(--warning);
+    }
+
+    .repo-card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Form Fields */
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input-box {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-bright);
+      padding: 7px 10px;
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .input-box:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+    }
+
+    /* Buttons */
+    .btn-block {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s;
+      margin-bottom: 8px;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: var(--card-bg);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #21262d;
+      color: var(--text-bright);
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 24px 12px;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    /* History List */
+    .history-list {
+      max-height: 240px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .history-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .history-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .history-name {
+      font-weight: 600;
+      color: var(--text-bright);
+    }
+
+    .history-date {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .history-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      word-break: break-all;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f6feb;
+      color: #fff;
+      font-size: 11px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      display: none;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <span class="brand-icon">🔒</span>
+      <span class="brand-title">Fork to Private</span>
+    </div>
+    <span class="version-tag">v1.0</span>
+  </div>
+
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-target="tab-current">当前仓库</div>
+    <div class="nav-tab" data-target="tab-manual">手动链接</div>
+    <div class="nav-tab" data-target="tab-history">历史记录</div>
+    <div class="nav-tab" data-target="tab-settings">设置</div>
+  </div>
+
+  <div class="content-area">
+    <!-- Tab 1: Current Repo -->
+    <div class="tab-pane active" id="tab-current">
+      <div id="current-repo-view">
+        <div class="repo-card">
+          <div class="repo-card-title">
+            <span id="current-repo-name">检测中...</span>
+            <span class="repo-badge badge-fork" id="current-repo-fork-badge" style="display:none;">Fork</span>
+          </div>
+          <div class="repo-card-sub" id="current-repo-sub">正在读取当前标签页信息...</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="target-repo-name">目标私有仓库名</label>
+          <input type="text" id="target-repo-name" class="input-box" placeholder="例如: repo-private" />
+        </div>
+
+        <button type="button" class="btn-block btn-primary" id="btn-cloud-import">
+          🚀 一键云端复制到私有
+        </button>
+        <button type="button" class="btn-block btn-secondary" id="btn-copy-cli">
+          📋 复制本地终端命令
+        </button>
+      </div>
+
+      <div id="no-repo-view" style="display:none;" class="empty-state">
+        <span class="empty-state-icon">📂</span>
+        <p>当前页面不是 GitHub 仓库页面</p>
+        <p style="font-size:11px; margin-top:4px;">请打开任意 GitHub 项目页面使用，或使用「手动链接」标签页。</p>
+      </div>
+    </div>
+
+    <!-- Tab 2: Manual URL -->
+    <div class="tab-pane" id="tab-manual">
+      <div class="form-group">
+        <label class="form-label" for="manual-source-url">源项目 GitHub 地址</label>
+        <input type="text" id="manual-source-url" class="input-box" placeholder="https://github.com/owner/repo" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="manual-target-name">目标私有仓库名</label>
+        <input type="text" id="manual-target-name" class="input-box" placeholder="例如: repo-private" />
+      </div>
+
+      <button type="button" class="btn-block btn-primary" id="btn-manual-import">
+        🚀 立即复制到私有
+      </button>
+    </div>
+
+    <!-- Tab 3: History -->
+    <div class="tab-pane" id="tab-history">
+      <div id="history-container" class="history-list">
+        <!-- Rendered by JS -->
+      </div>
+      <div id="history-empty" class="empty-state" style="display:none;">
+        <span class="empty-state-icon">📜</span>
+        <p>暂无复制记录</p>
+      </div>
+      <button type="button" class="btn-block btn-secondary" id="btn-clear-history" style="margin-top:12px;">
+        清空历史记录
+      </button>
+    </div>
+
+    <!-- Tab 4: Settings -->
+    <div class="tab-pane" id="tab-settings">
+      <div class="form-group">
+        <label class="form-label" for="setting-suffix">默认私有仓库后缀</label>
+        <input type="text" id="setting-suffix" class="input-box" value="-private" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="setting-local-dir">默认本地目录路径</label>
+        <input type="text" id="setting-local-dir" class="input-box" value="~/Projects" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">
+          <input type="checkbox" id="setting-auto-submit" checked style="vertical-align:middle; margin-right:4px;" />
+          <span style="vertical-align:middle;">跳转导入页后 3 秒自动提交</span>
+        </label>
+      </div>
+
+      <button type="button" class="btn-block btn-primary" id="btn-save-settings">
+        保存设置
+      </button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast-msg">已复制！</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
