@@ -22,7 +22,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "START_IMPORT") {
     const { sourceUrl, targetName, visibility, autoSubmit, sourceRepo, sourceOwner } = request.data;
     
+    // Generate a secure one-time nonce to prevent CSRF / external link drive-by attacks
+    const nonce = typeof crypto !== "undefined" && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : (Math.random().toString(36).substring(2) + Date.now().toString(36));
+
     const task = {
+      nonce,
       sourceUrl,
       targetName,
       visibility: visibility || "private",
@@ -49,16 +55,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.storage.local.set({ history: history.slice(0, 30) });
       });
 
-      // Construct target URL with hash parameter as reliable fallback
-      const hashParams = new URLSearchParams({
-        f2p: "1",
-        src: sourceUrl,
-        name: targetName,
-        vis: task.visibility,
-        auto: task.autoSubmit ? "1" : "0"
-      }).toString();
-
-      const importUrl = `https://github.com/new/import#${hashParams}`;
+      // Pass ONLY the one-time nonce in URL hash.
+      // External links cannot forge this nonce, protecting against drive-by automated imports.
+      const importUrl = `https://github.com/new/import#f2p_nonce=${nonce}`;
 
       // Open new/import in a new tab
       chrome.tabs.create({ url: importUrl }, (newTab) => {
@@ -79,7 +78,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.storage.local.set({ history });
       }
     });
-    // Clear pending_import
+    // Clear pending_import immediately
     chrome.storage.local.remove(["pending_import"]);
     sendResponse({ success: true });
     return true;

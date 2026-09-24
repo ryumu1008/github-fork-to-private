@@ -226,17 +226,31 @@
         const myUser = repoInfo.currentUser || "your-username";
         const localDir = `${settings.defaultLocalDir}/${targetName}`;
 
-        cliBlock.textContent = `# 1. 在 GitHub 创建对应私有仓库\n` +
-          `gh repo create ${myUser}/${targetName} --private --description "${defaultDesc}"\n\n` +
-          `# 2. 克隆源仓库到本地目录\n` +
-          `git clone ${sourceUrl} "${localDir}"\n` +
-          `cd "${localDir}"\n\n` +
-          `# 3. 将 origin 切换为你自己的私有仓库，并将源仓库保留为 upstream 追踪\n` +
+        cliBlock.textContent = `#!/usr/bin/env bash\n` +
+          `# 开启严格错误拦截：任何一步失败立刻终止，绝不继续执行后续步骤\n` +
+          `set -euo pipefail\n\n` +
+          `TARGET_REPO="${myUser}/${targetName}"\n` +
+          `SOURCE_URL="${sourceUrl}"\n` +
+          `LOCAL_DIR="${localDir}"\n\n` +
+          `echo "==> [1/4] 正在 GitHub 创建私有仓库: \${TARGET_REPO}..."\n` +
+          `gh repo create "\${TARGET_REPO}" --private --description "${defaultDesc}"\n\n` +
+          `echo "==> [2/4] 安全复核：确认目标仓库确实为【私有】状态..."\n` +
+          `IS_PRIVATE=$(gh repo view "\${TARGET_REPO}" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "false")\n` +
+          `if [ "\${IS_PRIVATE}" != "true" ]; then\n` +
+          `  echo "❌ [安全拦截] 目标仓库 \${TARGET_REPO} 不是私有仓库（或创建失败）！" >&2\n` +
+          `  echo "❌ 为防止将代码误推到公开仓库，已紧急终止后续上传！" >&2\n` +
+          `  exit 1\n` +
+          `fi\n\n` +
+          `echo "==> [3/4] 权限校验通过。克隆源项目并配置双 Remote..."\n` +
+          `git clone "\${SOURCE_URL}" "\${LOCAL_DIR}"\n` +
+          `cd "\${LOCAL_DIR}"\n\n` +
           `git remote rename origin upstream\n` +
-          `git remote add origin git@github.com:${myUser}/${targetName}.git\n` +
-          `git remote set-url --push upstream DISABLED\n` +
+          `git remote add origin "git@github.com:\${TARGET_REPO}.git"\n` +
+          `git remote set-url --push upstream DISABLED\n\n` +
+          `echo "==> [4/4] 正在推送到私有仓库..."\n` +
           `git push -u origin --all\n` +
-          `git push -u origin --tags`;
+          `git push -u origin --tags\n\n` +
+          `echo "✅ 全部完成！已成功将代码安全备份至私有仓库 \${TARGET_REPO}。"`;
       }
 
       updateCliCode();

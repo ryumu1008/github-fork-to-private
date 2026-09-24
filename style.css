@@ -479,3 +479,8 @@
   height: 100% !important;
   background: #58a6ff !important;
 }
+
+.f2p-banner-danger {
+  background: #250e12 !important;
+  border-bottom: 2px solid #f85149 !important;
+}
