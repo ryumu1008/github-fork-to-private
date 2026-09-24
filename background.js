@@ -1,86 +1,128 @@
-// Background Service Worker for GitHub Fork to Private
-
-chrome.runtime.onInstalled.addListener(() => {
-  console.log("GitHub Fork to Private Extension Installed");
-  // Initialize default settings if not set
-  chrome.storage.local.get(["settings"], (res) => {
-    if (!res.settings) {
-      chrome.storage.local.set({
-        settings: {
-          defaultSuffix: "-private",
-          defaultVisibility: "private",
-          autoSubmit: true,
-          defaultLocalDir: "~/Projects"
-        },
-        history: []
-      });
+// All task mutations run in one service-worker queue. Tokens never enter local history.
+importScripts('shared.js');
+const TASK_PREFIX = 'f2p-task:';
+const TASK_TTL = 5 * 60 * 1000;
+const CLAIM_TTL = 30 * 60 * 1000;
+let queue = Promise.resolve();
+function serial(operation) {
+  const result = queue.then(operation);
+  queue = result.catch(() => {});
+  return result;
+}
+function isImportSender(sender) {
+  if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || !sender.tab?.id || !sender.documentId) return false;
+  try {
+    const url = new URL(sender.url);
+    return url.origin === 'https://github.com' && url.pathname.replace(/\/$/, '') === '/new/import';
+  } catch { return false; }
+}
+function isStartSender(sender) {
+  if (sender.id !== chrome.runtime.id) return false;
+  if (sender.url === chrome.runtime.getURL('popup.html')) return true;
+  if (sender.frameId !== 0 || !sender.tab?.id) return false;
+  try { return new URL(sender.url).origin === 'https://github.com'; } catch { return false; }
+}
+async function historyUpdate(id, patch) {
+  const { history = [] } = await chrome.storage.local.get('history');
+  await chrome.storage.local.set({ history: history.map(item => item.id === id ? { ...item, ...patch } : item).slice(0, 30) });
+}
+async function pruneTasks() {
+  const entries = await chrome.storage.session.get(null);
+  for (const [key, task] of Object.entries(entries)) {
+    if (key.startsWith(TASK_PREFIX) && task.expiresAt <= Date.now()) {
+      await chrome.storage.session.remove(key);
+      if (task.state !== 'submission_requested') await historyUpdate(task.historyId, { status: 'expired' });
     }
-  });
-});
-
+  }
+}
+async function startImport(request, sender) {
+  if (!isStartSender(sender)) throw new Error('不允许从此页面发起导入。');
+  const source = F2P.parseRepoUrl(request.data?.sourceUrl);
+  const targetName = F2P.validateRepoName(request.data?.targetName);
+  const { settings } = await chrome.storage.local.get('settings');
+  const normalized = F2P.normalizeSettings(settings);
+  await pruneTasks();
+  const active = Object.keys(await chrome.storage.session.get(null)).filter(key => key.startsWith(TASK_PREFIX));
+  if (active.length >= 30) throw new Error('待处理任务较多，请先完成或关闭之前的导入页。');
+  const id = crypto.randomUUID();
+  const historyId = crypto.randomUUID();
+  // Create the tab first, bind its ID, then navigate. A page cannot claim an unbound task.
+  const tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+  const task = { id, historyId, sourceUrl: source.cloneUrl, targetName, autoSubmit: normalized.autoSubmit,
+    tabId: tab.id, state: 'pending', createdAt: Date.now(), expiresAt: Date.now() + TASK_TTL };
+  try {
+    await chrome.storage.session.set({ [TASK_PREFIX + id]: task });
+    const { history = [] } = await chrome.storage.local.get('history');
+    await chrome.storage.local.set({ history: [{ id: historyId, sourceUrl: task.sourceUrl, targetName,
+      createdAt: new Date().toISOString(), status: 'pending' }, ...history].slice(0, 30) });
+    await chrome.tabs.update(tab.id, { url: `https://github.com/new/import#f2p_task=${id}`, active: true });
+    return { success: true, tabId: tab.id };
+  } catch (error) {
+    await chrome.storage.session.remove(TASK_PREFIX + id);
+    await historyUpdate(historyId, { status: 'needs_attention' });
+    await chrome.tabs.remove(tab.id).catch(() => {});
+    throw error;
+  }
+}
+async function getTask(request, sender) {
+  if (!isImportSender(sender) || !/^[0-9a-f-]{36}$/i.test(request.taskId || '')) throw new Error('任务来源不匹配，请从插件重新发起。');
+  const key = TASK_PREFIX + request.taskId;
+  const task = (await chrome.storage.session.get(key))[key];
+  if (!task || task.tabId !== sender.tab.id || task.expiresAt <= Date.now()) throw new Error('任务已失效或不属于这个标签页，请从插件重新发起。');
+  return { key, task };
+}
+async function dispatch(request, sender) {
+  if (!request || typeof request.action !== 'string') throw new Error('无效请求。');
+  if (request.action === 'START_IMPORT') return startImport(request, sender);
+  if (request.action === 'CLEAR_HISTORY') {
+    if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('popup.html')) throw new Error('无效来源。');
+    await chrome.storage.local.set({ history: [] });
+    return { success: true };
+  }
+  const { key, task } = await getTask(request, sender);
+  if (request.action === 'CLAIM_IMPORT') {
+    if (task.state !== 'pending') throw new Error('此任务已被使用，请从插件重新发起。');
+    await chrome.storage.session.set({ [key]: { ...task, state: 'claimed', documentId: sender.documentId, expiresAt: Date.now() + CLAIM_TTL } });
+    await historyUpdate(task.historyId, { status: 'ready' });
+    return { success: true, task: { id: task.id, sourceUrl: task.sourceUrl, targetName: task.targetName, autoSubmit: task.autoSubmit } };
+  }
+  if (request.action === 'IMPORT_STATUS') {
+    if (task.documentId !== sender.documentId) throw new Error('页面已更换，请重新发起。');
+    const allowed = task.state === 'claimed'
+      ? ['submission_requested', 'needs_attention', 'cancelled']
+      : task.state === 'submission_requested' ? ['needs_attention'] : [];
+    if (!allowed.includes(request.status)) throw new Error('任务状态已变更，请重新发起。');
+    await historyUpdate(task.historyId, { status: request.status });
+    if (request.status === 'submission_requested') {
+      await chrome.storage.session.set({ [key]: { ...task, state: request.status } });
+    } else {
+      await chrome.storage.session.remove(key);
+    }
+    return { success: true };
+  }
+  throw new Error('不支持的操作。');
+}
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "START_IMPORT") {
-    const { sourceUrl, targetName, visibility, autoSubmit, sourceRepo, sourceOwner } = request.data;
-    
-    // Generate a secure one-time nonce to prevent CSRF / external link drive-by attacks
-    const nonce = typeof crypto !== "undefined" && crypto.randomUUID 
-      ? crypto.randomUUID() 
-      : (Math.random().toString(36).substring(2) + Date.now().toString(36));
-
-    const task = {
-      nonce,
-      sourceUrl,
-      targetName,
-      visibility: visibility || "private",
-      autoSubmit: autoSubmit !== undefined ? autoSubmit : true,
-      sourceRepo: sourceRepo || "",
-      sourceOwner: sourceOwner || "",
-      createdAt: Date.now()
-    };
-
-    // Store pending import task in chrome.storage.local
-    chrome.storage.local.set({ pending_import: task }, () => {
-      // Also add to history list
-      chrome.storage.local.get(["history"], (res) => {
-        const history = res.history || [];
-        history.unshift({
-          id: Date.now(),
-          sourceUrl,
-          targetName,
-          visibility: task.visibility,
-          createdAt: new Date().toLocaleString(),
-          status: "importing"
-        });
-        // Keep last 30 entries
-        chrome.storage.local.set({ history: history.slice(0, 30) });
-      });
-
-      // Pass ONLY the one-time nonce in URL hash.
-      // External links cannot forge this nonce, protecting against drive-by automated imports.
-      const importUrl = `https://github.com/new/import#f2p_nonce=${nonce}`;
-
-      // Open new/import in a new tab
-      chrome.tabs.create({ url: importUrl }, (newTab) => {
-        sendResponse({ success: true, tabId: newTab.id });
-      });
-    });
-
-    return true; // Keep message channel open for async response
-  }
-
-  if (request.action === "IMPORT_COMPLETED") {
-    const { targetName, targetUrl } = request.data;
-    chrome.storage.local.get(["history"], (res) => {
-      let history = res.history || [];
-      if (history.length > 0) {
-        history[0].status = "completed";
-        history[0].targetUrl = targetUrl;
-        chrome.storage.local.set({ history });
-      }
-    });
-    // Clear pending_import immediately
-    chrome.storage.local.remove(["pending_import"]);
-    sendResponse({ success: true });
-    return true;
-  }
+  serial(() => dispatch(request, sender)).then(sendResponse, error => sendResponse({ success: false, error: error.message || '操作失败，请重试。' }));
+  return true;
+});
+chrome.runtime.onInstalled.addListener(() => {
+  serial(async () => {
+    const { settings, history = [] } = await chrome.storage.local.get(['settings', 'history']);
+    await chrome.storage.local.set({ settings: F2P.normalizeSettings(settings), history: history.map(item => ({
+      id: item.id, sourceUrl: item.sourceUrl, targetName: item.targetName, createdAt: item.createdAt,
+      status: ['completed', 'importing'].includes(item.status) ? 'legacy_unknown' : item.status
+    })).slice(0, 30) });
+    await chrome.storage.local.remove('pending_import');
+  }).catch(() => {});
+});
+chrome.tabs.onRemoved.addListener(tabId => {
+  serial(async () => {
+    const tasks = await chrome.storage.session.get(null);
+    for (const [key, task] of Object.entries(tasks)) {
+      if (!key.startsWith(TASK_PREFIX) || task.tabId !== tabId) continue;
+      if (task.state !== 'submission_requested') await historyUpdate(task.historyId, { status: 'cancelled' });
+      await chrome.storage.session.remove(key);
+    }
+  }).catch(() => {});
 });

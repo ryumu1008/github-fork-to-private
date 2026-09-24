@@ -1,294 +1,96 @@
-// Popup Script for GitHub Fork to Private
-
-document.addEventListener("DOMContentLoaded", () => {
-  let currentRepoInfo = null;
-  let cachedSettings = {
-    defaultSuffix: "-private",
-    defaultLocalDir: "~/Projects",
-    autoSubmit: true
+document.addEventListener('DOMContentLoaded', async () => {
+  const byId = id => document.getElementById(id);
+  let settings = F2P.normalizeSettings();
+  let currentRepo;
+  let toastTimer;
+  const toast = text => {
+    byId('toast-msg').textContent = text; byId('toast-msg').style.display = 'block';
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { byId('toast-msg').style.display = 'none'; }, 4500);
   };
-
-  // UI Elements
-  const tabButtons = document.querySelectorAll(".nav-tab");
-  const tabPanes = document.querySelectorAll(".tab-pane");
-
-  const currentRepoView = document.getElementById("current-repo-view");
-  const noRepoView = document.getElementById("no-repo-view");
-  const currentRepoName = document.getElementById("current-repo-name");
-  const currentRepoForkBadge = document.getElementById("current-repo-fork-badge");
-  const currentRepoSub = document.getElementById("current-repo-sub");
-  const targetRepoNameInput = document.getElementById("target-repo-name");
-
-  const btnCloudImport = document.getElementById("btn-cloud-import");
-  const btnCopyCli = document.getElementById("btn-copy-cli");
-
-  const manualSourceUrlInput = document.getElementById("manual-source-url");
-  const manualTargetNameInput = document.getElementById("manual-target-name");
-  const btnManualImport = document.getElementById("btn-manual-import");
-
-  const historyContainer = document.getElementById("history-container");
-  const historyEmpty = document.getElementById("history-empty");
-  const btnClearHistory = document.getElementById("btn-clear-history");
-
-  const settingSuffix = document.getElementById("setting-suffix");
-  const settingLocalDir = document.getElementById("setting-local-dir");
-  const settingAutoSubmit = document.getElementById("setting-auto-submit");
-  const btnSaveSettings = document.getElementById("btn-save-settings");
-
-  const toastMsg = document.getElementById("toast-msg");
-
-  function showToast(text) {
-    toastMsg.textContent = text;
-    toastMsg.style.display = "block";
-    setTimeout(() => {
-      toastMsg.style.display = "none";
-    }, 2000);
+  async function send(action, data) {
+    const response = await chrome.runtime.sendMessage({ action, data });
+    if (!response?.success) throw new Error(response?.error || '操作未完成，请重新加载扩展再试。');
+    return response;
   }
-
-  // Load Settings
-  chrome.storage.local.get(["settings"], (res) => {
-    if (res.settings) {
-      cachedSettings = { ...cachedSettings, ...res.settings };
-      settingSuffix.value = cachedSettings.defaultSuffix;
-      settingLocalDir.value = cachedSettings.defaultLocalDir;
-      settingAutoSubmit.checked = cachedSettings.autoSubmit;
-    }
-  });
-
-  // Tab Switching
-  tabButtons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      tabButtons.forEach(b => b.classList.remove("active"));
-      tabPanes.forEach(p => p.classList.remove("active"));
-
-      btn.classList.add("active");
-      const targetId = btn.dataset.target;
-      const targetPane = document.getElementById(targetId);
-      if (targetPane) targetPane.classList.add("active");
-
-      if (targetId === "tab-history") {
-        renderHistory();
-      }
+  function onButton(id, action) {
+    byId(id).addEventListener('click', async () => {
+      const button = byId(id); button.disabled = true;
+      try { await action(); } catch (error) { toast(error.message || '操作失败，请重试。'); }
+      finally { button.disabled = false; }
     });
-  });
-
-  // Detect Active Tab
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const activeTab = tabs[0];
-    if (!activeTab || !activeTab.url) {
-      showNoRepo();
-      return;
+  }
+  const statuses = { pending: '等待打开导入页', ready: '待提交', submission_requested: '已发起提交，结果待确认',
+    needs_attention: '需要检查', expired: '已过期，请重新发起', cancelled: '已取消', legacy_unknown: '旧版记录，结果未核实' };
+  async function renderHistory() {
+    const { history = [] } = await chrome.storage.local.get('history');
+    const container = byId('history-container'); container.replaceChildren();
+    byId('history-empty').style.display = history.length ? 'none' : 'block';
+    byId('btn-clear-history').style.display = history.length ? 'block' : 'none';
+    for (const item of history) {
+      const row = document.createElement('div'); row.className = 'history-item';
+      const header = document.createElement('div'); header.className = 'history-item-header';
+      const name = document.createElement('span'); name.className = 'history-name'; name.textContent = item.targetName || '未命名';
+      const date = document.createElement('span'); date.className = 'history-date';
+      const parsed = new Date(item.createdAt); date.textContent = Number.isNaN(parsed.getTime()) ? String(item.createdAt || '') : parsed.toLocaleString();
+      header.append(name, date);
+      const source = document.createElement('div'); source.className = 'history-sub'; source.textContent = item.sourceUrl || '';
+      const status = document.createElement('div'); status.className = 'history-sub'; status.textContent = statuses[item.status] || '结果未核实';
+      row.append(header, source, status); container.append(row);
     }
-
+  }
+  for (const button of document.querySelectorAll('.nav-tab')) button.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(el => el.classList.toggle('active', el === button));
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.toggle('active', el.id === button.dataset.target));
+    if (button.dataset.target === 'tab-history') renderHistory().catch(error => toast(error.message));
+  });
+  onButton('btn-cloud-import', async () => {
+    if (!currentRepo) throw new Error('请先打开 GitHub 仓库页面。');
+    await send('START_IMPORT', { sourceUrl: currentRepo.cloneUrl, targetName: F2P.validateRepoName(byId('target-repo-name').value) });
+    window.close();
+  });
+  onButton('btn-copy-cli', async () => {
+    if (!currentRepo) throw new Error('请先打开 GitHub 仓库页面。');
+    await navigator.clipboard.writeText(F2P.buildCliScript({ sourceUrl: currentRepo.cloneUrl,
+      targetName: byId('target-repo-name').value, localDir: settings.defaultLocalDir }));
+    toast('已复制。脚本使用 gh 当前登录的 GitHub 账号。');
+  });
+  byId('manual-source-url').addEventListener('input', () => {
+    try { const source = F2P.parseRepoUrl(byId('manual-source-url').value); byId('manual-target-name').value = source.repo + settings.defaultSuffix; } catch { /* An incomplete URL is normal while typing. */ }
+  });
+  onButton('btn-manual-import', async () => {
+    const source = F2P.parseRepoUrl(byId('manual-source-url').value);
+    await send('START_IMPORT', { sourceUrl: source.cloneUrl, targetName: F2P.validateRepoName(byId('manual-target-name').value) });
+    window.close();
+  });
+  onButton('btn-clear-history', async () => { await send('CLEAR_HISTORY'); await renderHistory(); toast('历史记录已清空。'); });
+  onButton('btn-save-settings', async () => {
+    const suffix = byId('setting-suffix').value.trim() || '-private';
+    F2P.validateRepoName('repo' + suffix);
+    const localDir = byId('setting-local-dir').value.trim() || '~/Projects';
+    // Use the same validation as the generator; do not silently change an unsafe path.
+    F2P.buildCliScript({ sourceUrl: 'https://github.com/example/repo.git', targetName: 'repo' + suffix, localDir });
+    settings = F2P.normalizeSettings({ defaultSuffix: suffix, defaultLocalDir: localDir, autoSubmit: byId('setting-auto-submit').checked });
+    await chrome.storage.local.set({ settings }); toast('设置已保存。');
+  });
+  function showNoRepo() { byId('current-repo-view').style.display = 'none'; byId('no-repo-view').style.display = 'block'; }
+  try {
+    settings = F2P.normalizeSettings((await chrome.storage.local.get('settings')).settings);
+    byId('setting-suffix').value = settings.defaultSuffix; byId('setting-local-dir').value = settings.defaultLocalDir;
+    byId('setting-auto-submit').checked = settings.autoSubmit;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url) return showNoRepo();
+    const url = new URL(tab.url); const parts = url.pathname.split('/').filter(Boolean);
+    const reserved = new Set(['settings','explore','notifications','orgs','marketplace','topics','trending','collections','events','sponsors','account','new','login','signup','search','pulls','issues','users','organizations','features']);
+    if (url.origin !== 'https://github.com' || parts.length < 2 || reserved.has(parts[0].toLowerCase())) return showNoRepo();
+    currentRepo = F2P.parseRepoUrl(`https://github.com/${parts[0]}/${parts[1]}`);
+    byId('current-repo-name').textContent = currentRepo.fullRepo;
+    byId('target-repo-name').value = currentRepo.repo + settings.defaultSuffix;
+    byId('current-repo-sub').textContent = 'GitHub 仓库；导入结果请以 GitHub 页面为准';
+    byId('current-repo-view').style.display = 'block'; byId('no-repo-view').style.display = 'none';
     try {
-      const url = new URL(activeTab.url);
-      if (url.hostname === "github.com") {
-        const parts = url.pathname.split("/").filter(Boolean);
-        const reserved = new Set([
-          "settings", "explore", "notifications", "orgs", "marketplace",
-          "topics", "trending", "collections", "events", "sponsors",
-          "account", "new", "login", "signup", "search", "pulls", "issues"
-        ]);
-
-        if (parts.length >= 2 && !reserved.has(parts[0].toLowerCase())) {
-          const owner = parts[0];
-          const repo = parts[1];
-          currentRepoInfo = {
-            owner,
-            repo,
-            fullRepo: `${owner}/${repo}`,
-            cloneUrl: `https://github.com/${owner}/${repo}.git`
-          };
-
-          currentRepoName.textContent = currentRepoInfo.fullRepo;
-          targetRepoNameInput.value = `${repo}${cachedSettings.defaultSuffix}`;
-
-          // Try executing script to get detailed fork metadata if possible
-          chrome.tabs.sendMessage(activeTab.id, { action: "GET_REPO_META" }, (response) => {
-            if (response && response.isFork) {
-              currentRepoForkBadge.style.display = "inline-block";
-              currentRepoSub.textContent = `上游源: ${response.parentNwo || "未知"}`;
-            } else {
-              currentRepoForkBadge.style.display = "none";
-              currentRepoSub.textContent = `公开开源仓库`;
-            }
-          });
-
-          currentRepoView.style.display = "block";
-          noRepoView.style.display = "none";
-          return;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    showNoRepo();
-  });
-
-  function showNoRepo() {
-    currentRepoView.style.display = "none";
-    noRepoView.style.display = "block";
-  }
-
-  // Cloud Import from Current Tab
-  btnCloudImport.addEventListener("click", () => {
-    if (!currentRepoInfo) return;
-    const targetName = targetRepoNameInput.value.trim();
-    if (!targetName) {
-      showToast("请输入目标仓库名称");
-      return;
-    }
-
-    btnCloudImport.disabled = true;
-    btnCloudImport.textContent = "正在跳转...";
-
-    chrome.runtime.sendMessage({
-      action: "START_IMPORT",
-      data: {
-        sourceUrl: currentRepoInfo.cloneUrl,
-        targetName: targetName,
-        visibility: "private",
-        autoSubmit: cachedSettings.autoSubmit,
-        sourceRepo: currentRepoInfo.repo,
-        sourceOwner: currentRepoInfo.owner
-      }
-    }, () => {
-      window.close();
-    });
-  });
-
-  // Copy CLI from Current Tab
-  btnCopyCli.addEventListener("click", () => {
-    if (!currentRepoInfo) return;
-    const targetName = targetRepoNameInput.value.trim() || `${currentRepoInfo.repo}-private`;
-    const localDir = `${cachedSettings.defaultLocalDir}/${targetName}`;
-    const desc = `Private copy of ${currentRepoInfo.repo}`;
-
-    const myUser = (currentRepoInfo && currentRepoInfo.currentUser) || "<your-username>";
-    const cliCmd = `#!/usr/bin/env bash\n` +
-      `# 开启严格错误拦截：任何一步失败立刻终止，绝不继续执行后续步骤\n` +
-      `set -euo pipefail\n\n` +
-      `TARGET_REPO="${myUser}/${targetName}"\n` +
-      `SOURCE_URL="${currentRepoInfo.cloneUrl}"\n` +
-      `LOCAL_DIR="${localDir}"\n\n` +
-      `echo "==> [1/4] 正在 GitHub 创建私有仓库: \${TARGET_REPO}..."\n` +
-      `gh repo create "\${TARGET_REPO}" --private --description "${desc}"\n\n` +
-      `echo "==> [2/4] 安全复核：确认目标仓库确实为【私有】状态..."\n` +
-      `IS_PRIVATE=$(gh repo view "\${TARGET_REPO}" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "false")\n` +
-      `if [ "\${IS_PRIVATE}" != "true" ]; then\n` +
-      `  echo "❌ [安全拦截] 目标仓库 \${TARGET_REPO} 不是私有仓库（或创建失败）！" >&2\n` +
-      `  echo "❌ 为防止将代码误推到公开仓库，已紧急终止后续上传！" >&2\n` +
-      `  exit 1\n` +
-      `fi\n\n` +
-      `echo "==> [3/4] 权限校验通过。克隆源项目并配置双 Remote..."\n` +
-      `git clone "\${SOURCE_URL}" "\${LOCAL_DIR}"\n` +
-      `cd "\${LOCAL_DIR}"\n\n` +
-      `git remote rename origin upstream\n` +
-      `git remote add origin "git@github.com:\${TARGET_REPO}.git"\n` +
-      `git remote set-url --push upstream DISABLED\n\n` +
-      `echo "==> [4/4] 正在推送到私有仓库..."\n` +
-      `git push -u origin --all\n` +
-      `git push -u origin --tags\n\n` +
-      `echo "✅ 全部完成！已成功将代码安全备份至私有仓库 \${TARGET_REPO}。"`;
-
-    navigator.clipboard.writeText(cliCmd).then(() => {
-      showToast("✓ 终端命令已复制！");
-    });
-  });
-
-  // Manual URL Auto-fill name
-  manualSourceUrlInput.addEventListener("input", () => {
-    const val = manualSourceUrlInput.value.trim();
-    try {
-      const u = new URL(val);
-      const parts = u.pathname.split("/").filter(Boolean);
-      if (parts.length >= 2) {
-        const repo = parts[1].replace(/\.git$/, "");
-        manualTargetNameInput.value = `${repo}${cachedSettings.defaultSuffix}`;
-      }
-    } catch (e) {}
-  });
-
-  // Manual Import
-  btnManualImport.addEventListener("click", () => {
-    const sourceUrl = manualSourceUrlInput.value.trim();
-    const targetName = manualTargetNameInput.value.trim();
-
-    if (!sourceUrl || !targetName) {
-      showToast("请填写完整源地址和目标名称");
-      return;
-    }
-
-    let validUrl = sourceUrl;
-    if (!validUrl.endsWith(".git")) {
-      validUrl += ".git";
-    }
-
-    btnManualImport.disabled = true;
-    btnManualImport.textContent = "正在跳转...";
-
-    chrome.runtime.sendMessage({
-      action: "START_IMPORT",
-      data: {
-        sourceUrl: validUrl,
-        targetName: targetName,
-        visibility: "private",
-        autoSubmit: cachedSettings.autoSubmit
-      }
-    }, () => {
-      window.close();
-    });
-  });
-
-  // Render History
-  function renderHistory() {
-    chrome.storage.local.get(["history"], (res) => {
-      const history = res.history || [];
-      historyContainer.innerHTML = "";
-
-      if (history.length === 0) {
-        historyEmpty.style.display = "block";
-        btnClearHistory.style.display = "none";
-        return;
-      }
-
-      historyEmpty.style.display = "none";
-      btnClearHistory.style.display = "block";
-
-      history.forEach(item => {
-        const div = document.createElement("div");
-        div.className = "history-item";
-        div.innerHTML = `
-          <div class="history-item-header">
-            <span class="history-name">${item.targetName}</span>
-            <span class="history-date">${item.createdAt}</span>
-          </div>
-          <div class="history-sub">${item.sourceUrl}</div>
-        `;
-        historyContainer.appendChild(div);
-      });
-    });
-  }
-
-  // Clear History
-  btnClearHistory.addEventListener("click", () => {
-    chrome.storage.local.set({ history: [] }, () => {
-      renderHistory();
-      showToast("历史记录已清空");
-    });
-  });
-
-  // Save Settings
-  btnSaveSettings.addEventListener("click", () => {
-    cachedSettings = {
-      defaultSuffix: settingSuffix.value.trim() || "-private",
-      defaultLocalDir: settingLocalDir.value.trim() || "~/Projects",
-      autoSubmit: settingAutoSubmit.checked
-    };
-
-    chrome.storage.local.set({ settings: cachedSettings }, () => {
-      showToast("设置已保存！");
-    });
-  });
+      const meta = await chrome.tabs.sendMessage(tab.id, { action: 'GET_REPO_META' });
+      byId('current-repo-fork-badge').style.display = meta?.isFork ? 'inline-block' : 'none';
+      if (meta?.isFork) byId('current-repo-sub').textContent = `上游源：${meta.parentNwo || '未知'}`;
+    } catch { /* A newly installed extension may need the GitHub tab refreshed. URL detection still works. */ }
+  } catch (error) { showNoRepo(); toast(error.message); }
 });

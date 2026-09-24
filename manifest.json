@@ -1,12 +1,11 @@
 {
   "manifest_version": 3,
   "name": "GitHub 一键复制到私有 (Fork to Private)",
-  "version": "1.0.0",
-  "description": "一键将 GitHub Fork 或公开仓库复制为完全独立的私有仓库，保留完整历史，支持云端免Token极速克隆与本地双Remote命令生成。",
+  "version": "1.0.1",
+  "description": "将 GitHub 仓库复制到独立私有仓库；校验私有状态，支持云端导入和全部 Git 分支、标签的本地复制。",
   "permissions": [
     "storage",
-    "activeTab",
-    "tabs"
+    "activeTab"
   ],
   "host_permissions": [
     "https://github.com/*"
@@ -38,6 +37,7 @@
         "https://github.com/new/import*"
       ],
       "js": [
+        "shared.js",
         "content_repo.js"
       ],
       "css": [
@@ -50,6 +50,7 @@
         "https://github.com/new/import*"
       ],
       "js": [
+        "shared.js",
         "content_import.js"
       ],
       "css": [
@@ -57,5 +58,6 @@
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "minimum_chrome_version": "106"
 }

@@ -1,0 +1,59 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { worker, storage, until } = require('./helpers.cjs');
+
+test('independent tasks, single claim, tab binding, document binding, and truthful history', async () => {
+  const w = worker();
+  const [a,b] = await Promise.all([w.start('task-a'),w.start('task-b')]);
+  assert.notEqual(a.taskId,b.taskId);
+  assert.equal(JSON.stringify(w.local.state).includes(a.taskId),false);
+  assert.equal(JSON.stringify(w.local.state).includes(b.taskId),false);
+  assert.equal((await w.send({action:'CLAIM_IMPORT',taskId:a.taskId},w.sender(b.tabId))).success,false);
+  const claims = await Promise.all([1,2].map(()=>w.send({action:'CLAIM_IMPORT',taskId:a.taskId},w.sender(a.tabId))));
+  assert.deepEqual(claims.map(x=>x.success).sort(),[false,true]);
+  assert.equal((await w.send({action:'CLAIM_IMPORT',taskId:b.taskId},w.sender(b.tabId))).success,true);
+  assert.equal((await w.send({action:'IMPORT_STATUS',taskId:a.taskId,status:'submission_requested'},w.sender(a.tabId,'other-document'))).success,false);
+  assert.equal((await w.send({action:'IMPORT_STATUS',taskId:a.taskId,status:'submission_requested'},w.sender(a.tabId))).success,true);
+  const h=w.local.state.history;
+  assert.equal(h.find(x=>x.id===a.historyId).status,'submission_requested');
+  assert.equal(h.find(x=>x.id===b.historyId).status,'ready');
+  assert(w.session.state['f2p-task:'+b.taskId]);
+  assert.equal(h.some(x=>x.status==='completed'),false);
+  assert.equal((await w.send({action:'IMPORT_STATUS',taskId:a.taskId,status:'submission_requested'},w.sender(a.tabId))).success,false);
+});
+test('untrusted pages, bad inputs and expired tasks cannot start or claim',async()=>{
+  const w=worker();
+  const request={action:'START_IMPORT',data:{sourceUrl:'https://github.com/example/demo',targetName:'demo'}};
+  for(const sender of [{id:'other',url:w.chrome.runtime.getURL('popup.html')},{id:w.chrome.runtime.id,url:'https://evil.example',frameId:0,tab:{id:1}}]) assert.equal((await w.send(request,sender)).success,false);
+  for(const name of ['$(printf BAD)','a/b','..']) assert.equal((await w.start(name)).success,false);
+  const a=await w.start();
+  w.session.state['f2p-task:'+a.taskId].expiresAt=Date.now()-1;
+  assert.equal((await w.send({action:'CLAIM_IMPORT',taskId:a.taskId},w.sender(a.tabId))).success,false);
+  assert.equal((await w.send({action:'CLAIM_IMPORT',taskId:'not-a-task'},w.sender(a.tabId))).success,false);
+});
+test('worker restart cannot replay a consumed task; settings are authoritative',async()=>{
+  const w=worker({local:storage({settings:{autoSubmit:false},history:[]})});
+  const a=await w.start();
+  const result=await w.send({action:'CLAIM_IMPORT',taskId:a.taskId},w.sender(a.tabId));
+  assert.equal(result.task.autoSubmit,false);
+  const next=w.restart();
+  assert.equal((await next.send({action:'CLAIM_IMPORT',taskId:a.taskId},next.sender(a.tabId))).success,false);
+});
+test('failed navigation cleans only its task, while closed tabs are cancelled',async()=>{
+  const failed=worker({failNavigation:true});
+  assert.equal((await failed.start()).success,false);
+  assert.equal(Object.keys(failed.session.state).length,0);
+  assert.equal(failed.tabs.size,0);
+  const w=worker(),a=await w.start('a'),b=await w.start('b');
+  w.removed(a.tabId);
+  await until(()=>!w.session.state['f2p-task:'+a.taskId]);
+  assert(w.session.state['f2p-task:'+b.taskId]);
+  assert.equal(w.local.state.history.find(x=>x.id===a.historyId).status,'cancelled');
+});
+test('upgrade preserves settings and converts unverified legacy success records',async()=>{
+  const w=worker({local:storage({settings:{autoSubmit:false},pending_import:{nonce:'old'},history:[{id:1,targetName:'old',status:'completed',targetUrl:'https://github.com/wrong'}]})});
+  w.installed();await until(()=>!w.local.state.pending_import);
+  assert.equal(w.local.state.settings.autoSubmit,false);
+  assert.equal(w.local.state.history[0].status,'legacy_unknown');
+  assert.equal('targetUrl' in w.local.state.history[0],false);
+});

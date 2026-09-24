@@ -1,0 +1,44 @@
+const { test }=require('node:test');
+const assert=require('node:assert/strict');
+const { JSDOM }=require('jsdom');
+const { read,until }=require('./helpers.cjs');
+function setup(html,url,settings={}){
+ const dom=new JSDOM(html,{url,runScripts:'outside-only'}),win=dom.window;const messages=[];let clipboard='';
+ win.chrome={storage:{local:{get(keys,cb){const result={settings:{defaultSuffix:'-copy',defaultLocalDir:'~/Projects',autoSubmit:false,...settings},history:[{targetName:'<img src=x onerror=alert(1)>',sourceUrl:'<em>fake</em>',createdAt:'2026-09-25T00:00:00Z',status:'submission_requested'}]};if(cb)cb(result);return Promise.resolve(result);},set(){return Promise.resolve();}}},runtime:{sendMessage:async message=>{messages.push(message);return {success:false,error:'模拟后台拒绝'};},onMessage:{addListener(){}}},tabs:{query:async()=>[{id:1,url:'https://github.com/example/demo'}],sendMessage:async()=>({currentUser:'browser-user',isFork:false})}};
+ Object.defineProperty(win.navigator,'clipboard',{value:{writeText:async text=>{clipboard=text;}}});
+ win.eval(read('shared.js'));
+ return {dom,win,messages,clipboard:()=>clipboard};
+}
+test('popup uses saved settings, safe history, working generator and visible background errors',async()=>{
+ const p=setup(read('popup.html'),'https://extension.example/popup.html');try{
+  p.win.eval(read('popup.js'));
+  await until(()=>p.win.document.getElementById('target-repo-name').value==='demo-copy');
+  p.win.document.getElementById('btn-copy-cli').click();await until(()=>p.clipboard().length>0);
+  assert(!p.clipboard().includes('<your-username>'));assert(p.clipboard().includes('api --hostname github.com user'));
+  p.win.document.querySelector('[data-target="tab-history"]').click();
+  await until(()=>p.win.document.querySelector('.history-item'));
+  assert.equal(p.win.document.querySelectorAll('.history-item img,.history-item em').length,0);
+  assert.match(p.win.document.querySelector('.history-item').textContent,/结果待确认/);
+  p.win.document.getElementById('btn-cloud-import').click();await until(()=>p.win.document.getElementById('toast-msg').textContent==='模拟后台拒绝');
+  assert.equal(p.win.document.getElementById('btn-cloud-import').disabled,false);
+  p.win.document.getElementById('manual-source-url').value='https://evil.example/owner/repo';
+  p.win.document.getElementById('manual-target-name').value='valid';const count=p.messages.length;
+  p.win.document.getElementById('btn-manual-import').click();await new Promise(r=>setTimeout(r,10));assert.equal(p.messages.length,count);
+ }finally{p.dom.window.close();}
+});
+test('repository modal escapes metadata and generates from latest SPA URL',async()=>{
+ const p=setup('<meta name="user-login" content="&quot;&gt;&lt;img src=x&gt;"><ul class="pagehead-actions"><li>Fork</li></ul>','https://github.com/example/first');try{
+  p.win.eval(read('content_repo.js'));await until(()=>p.win.document.getElementById('f2p-private-copy-btn'));
+  p.win.history.pushState(null,'','/example/second');
+  p.win.document.getElementById('f2p-private-copy-btn').click();
+  await until(()=>p.win.document.getElementById('f2p-modal-overlay'));
+  assert.equal(p.win.document.getElementById('f2p-target-name').value,'second-copy');
+  assert.equal(p.win.document.querySelectorAll('#f2p-modal-overlay img').length,0);
+  p.win.document.getElementById('f2p-copy-cli').click();await until(()=>p.clipboard().length>0);
+  assert(p.clipboard().includes('example/second.git'));
+  p.win.document.getElementById('f2p-target-name').value='$(printf BAD)';
+  p.win.document.getElementById('f2p-target-name').dispatchEvent(new p.win.Event('input'));
+  p.win.document.getElementById('f2p-start-cloud-import').click();await new Promise(r=>setTimeout(r,10));
+  assert.equal(p.messages.length,0);assert(p.win.document.querySelector('[role="alert"]').textContent.length>0);
+ }finally{p.dom.window.close();}
+});

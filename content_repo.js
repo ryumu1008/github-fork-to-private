@@ -17,6 +17,7 @@
     const repo = pathParts[1];
 
     if (RESERVED_PATHS.has(owner.toLowerCase())) return null;
+    try { F2P.parseRepoUrl(`https://github.com/${owner}/${repo}`); } catch { return null; }
 
     // Read GitHub octolytics metadata if available
     const isForkMeta = document.querySelector('meta[name="octolytics-dimension-repository_is_fork"]');
@@ -74,7 +75,8 @@
 
     btn.addEventListener("click", (e) => {
       e.preventDefault();
-      showModal(repoInfo);
+      const current = getRepoDetails();
+      if (current) showModal(current);
     });
 
     btnWrapper.appendChild(btn);
@@ -94,14 +96,9 @@
     if (existing) existing.remove();
 
     chrome.storage.local.get(["settings"], (res) => {
-      const settings = res.settings || {
-        defaultSuffix: "-private",
-        defaultLocalDir: "~/Projects",
-        autoSubmit: true
-      };
+      const settings = F2P.normalizeSettings(res.settings);
 
       const defaultTargetName = `${repoInfo.repo}${settings.defaultSuffix}`;
-      const defaultDesc = `Private copy of ${repoInfo.repo}`;
 
       const overlay = document.createElement("div");
       overlay.id = "f2p-modal-overlay";
@@ -114,7 +111,7 @@
               <span class="f2p-icon-badge">🔒</span>
               <div class="f2p-title-group">
                 <h3 class="f2p-title">复制到独立私有仓库</h3>
-                <p class="f2p-subtitle">保留完整提交历史与所有分支，完全独立于公共 Fork 树</p>
+                <p class="f2p-subtitle">创建独立私有仓库；Issues、PR 和 LFS 文件需另行迁移</p>
               </div>
             </div>
             <button class="f2p-close-btn" id="f2p-modal-close">&times;</button>
@@ -126,10 +123,10 @@
               <label class="f2p-label">源仓库来源</label>
               <div class="f2p-source-box">
                 <span class="f2p-tag ${repoInfo.isFork ? 'f2p-tag-fork' : 'f2p-tag-repo'}">
-                  ${repoInfo.isFork ? '已 Fork 仓库' : '开源仓库'}
+                  ${repoInfo.isFork ? '已 Fork 仓库' : 'GitHub 仓库'}
                 </span>
-                <span class="f2p-source-name">${repoInfo.fullRepo}</span>
-                ${repoInfo.parentNwo ? `<span class="f2p-source-parent">(源自: ${repoInfo.parentNwo})</span>` : ''}
+                <span class="f2p-source-name">${F2P.escapeHtml(repoInfo.fullRepo)}</span>
+                ${repoInfo.parentNwo ? `<span class="f2p-source-parent">(源自: ${F2P.escapeHtml(repoInfo.parentNwo)})</span>` : ''}
               </div>
             </div>
 
@@ -137,10 +134,10 @@
             <div class="f2p-field-group">
               <label class="f2p-label" for="f2p-target-name">目标私有仓库名称</label>
               <div class="f2p-input-wrapper">
-                <span class="f2p-input-prefix">${repoInfo.currentUser ? repoInfo.currentUser + '/' : '你的账号/'}</span>
-                <input type="text" id="f2p-target-name" class="f2p-input" value="${defaultTargetName}" placeholder="仓库名称" />
+                <span class="f2p-input-prefix">${F2P.escapeHtml(repoInfo.currentUser ? repoInfo.currentUser + '/' : '你的账号/')}</span>
+                <input type="text" id="f2p-target-name" class="f2p-input" value="${F2P.escapeHtml(defaultTargetName)}" placeholder="仓库名称" />
               </div>
-              <span class="f2p-hint">默认自动添加 <code>${settings.defaultSuffix}</code> 后缀，方便区分并防止同名冲突</span>
+              <span class="f2p-hint">默认自动添加 <code>${F2P.escapeHtml(settings.defaultSuffix)}</code> 后缀，方便区分并防止同名冲突</span>
             </div>
 
             <!-- Clone Source Selection (if fork) -->
@@ -154,7 +151,7 @@
                 </label>
                 <label class="f2p-radio-label">
                   <input type="radio" name="f2p-source-choice" value="upstream" />
-                  <span>上游原始仓库 (<code>${repoInfo.parentNwo}</code>)</span>
+                  <span>上游原始仓库 (<code>${F2P.escapeHtml(repoInfo.parentNwo)}</code>)</span>
                 </label>
               </div>
             </div>
@@ -175,11 +172,11 @@
                 </div>
                 <div class="f2p-feature-item">
                   <span class="f2p-check">✓</span>
-                  <span><strong>全自动化云端克隆</strong>：不消耗本地宽带，5-15 秒在 GitHub 服务器完成完整镜像</span>
+                  <span><strong>全自动化云端克隆</strong>：由 GitHub 处理导入，耗时取决于仓库大小和服务状态</span>
                 </div>
                 <div class="f2p-feature-item">
                   <span class="f2p-check">✓</span>
-                  <span><strong>完全私有</strong>：创建后即为 Private，不会公开你的私人修改或敏感信息</span>
+                  <span><strong>完全私有</strong>：提交前核对 Private；最终结果请以 GitHub 页面为准</span>
                 </div>
               </div>
               <div class="f2p-action-row">
@@ -191,7 +188,7 @@
 
             <!-- Tab 2: CLI -->
             <div class="f2p-tab-content" id="f2p-tab-cli">
-              <p class="f2p-hint" style="margin-top:0;">一键在本地终端执行，创建私有库并配置 <code>upstream</code> 保持后续只读同步：</p>
+              <p class="f2p-hint" style="margin-top:0;">脚本使用 <code>gh</code> 当前登录账号，复制全部 Git 分支和标签，并禁用向 <code>upstream</code> 推送：</p>
               <pre class="f2p-code-block" id="f2p-cli-code"></pre>
               <div class="f2p-action-row">
                 <button type="button" class="f2p-secondary-btn" id="f2p-copy-cli">
@@ -216,41 +213,20 @@
       const nameInput = overlay.querySelector("#f2p-target-name");
       const cliBlock = overlay.querySelector("#f2p-cli-code");
 
+      let cliValid = false;
+      function chosenSourceUrl() {
+        const chosen = overlay.querySelector('input[name="f2p-source-choice"]:checked')?.value;
+        return chosen === 'upstream' && repoInfo.parentNwo
+          ? `https://github.com/${repoInfo.parentNwo}.git` : repoInfo.cloneUrl;
+      }
       function updateCliCode() {
-        const targetName = nameInput.value.trim() || `${repoInfo.repo}-private`;
-        const chosenSource = overlay.querySelector('input[name="f2p-source-choice"]:checked')?.value;
-        const sourceUrl = chosenSource === "upstream" && repoInfo.parentNwo
-          ? `git@github.com:${repoInfo.parentNwo}.git`
-          : repoInfo.cloneUrl.replace("https://github.com/", "git@github.com:");
-        
-        const myUser = repoInfo.currentUser || "your-username";
-        const localDir = `${settings.defaultLocalDir}/${targetName}`;
-
-        cliBlock.textContent = `#!/usr/bin/env bash\n` +
-          `# 开启严格错误拦截：任何一步失败立刻终止，绝不继续执行后续步骤\n` +
-          `set -euo pipefail\n\n` +
-          `TARGET_REPO="${myUser}/${targetName}"\n` +
-          `SOURCE_URL="${sourceUrl}"\n` +
-          `LOCAL_DIR="${localDir}"\n\n` +
-          `echo "==> [1/4] 正在 GitHub 创建私有仓库: \${TARGET_REPO}..."\n` +
-          `gh repo create "\${TARGET_REPO}" --private --description "${defaultDesc}"\n\n` +
-          `echo "==> [2/4] 安全复核：确认目标仓库确实为【私有】状态..."\n` +
-          `IS_PRIVATE=$(gh repo view "\${TARGET_REPO}" --json isPrivate --jq '.isPrivate' 2>/dev/null || echo "false")\n` +
-          `if [ "\${IS_PRIVATE}" != "true" ]; then\n` +
-          `  echo "❌ [安全拦截] 目标仓库 \${TARGET_REPO} 不是私有仓库（或创建失败）！" >&2\n` +
-          `  echo "❌ 为防止将代码误推到公开仓库，已紧急终止后续上传！" >&2\n` +
-          `  exit 1\n` +
-          `fi\n\n` +
-          `echo "==> [3/4] 权限校验通过。克隆源项目并配置双 Remote..."\n` +
-          `git clone "\${SOURCE_URL}" "\${LOCAL_DIR}"\n` +
-          `cd "\${LOCAL_DIR}"\n\n` +
-          `git remote rename origin upstream\n` +
-          `git remote add origin "git@github.com:\${TARGET_REPO}.git"\n` +
-          `git remote set-url --push upstream DISABLED\n\n` +
-          `echo "==> [4/4] 正在推送到私有仓库..."\n` +
-          `git push -u origin --all\n` +
-          `git push -u origin --tags\n\n` +
-          `echo "✅ 全部完成！已成功将代码安全备份至私有仓库 \${TARGET_REPO}。"`;
+        try {
+          cliBlock.textContent = F2P.buildCliScript({ sourceUrl: chosenSourceUrl(), targetName: nameInput.value, localDir: settings.defaultLocalDir });
+          cliValid = true;
+        } catch (error) {
+          cliBlock.textContent = error.message;
+          cliValid = false;
+        }
       }
 
       updateCliCode();
@@ -272,43 +248,30 @@
 
       // Copy CLI code
       const copyCliBtn = overlay.querySelector("#f2p-copy-cli");
-      copyCliBtn.addEventListener("click", () => {
-        navigator.clipboard.writeText(cliBlock.textContent).then(() => {
-          copyCliBtn.textContent = "✓ 已复制到剪贴板！";
-          setTimeout(() => { copyCliBtn.textContent = "📋 复制完整终端脚本"; }, 2500);
-        });
+      copyCliBtn.addEventListener('click', async () => {
+        if (!cliValid) return;
+        try {
+          await navigator.clipboard.writeText(cliBlock.textContent);
+          copyCliBtn.textContent = '✓ 已复制';
+          setTimeout(() => { copyCliBtn.textContent = '📋 复制完整终端脚本'; }, 2500);
+        } catch { copyCliBtn.textContent = '复制失败，请手动选择脚本复制'; }
       });
 
-      // Start Cloud Import
-      const startBtn = overlay.querySelector("#f2p-start-cloud-import");
-      startBtn.addEventListener("click", () => {
-        const targetName = nameInput.value.trim();
-        if (!targetName) {
-          alert("请输入目标私有仓库名称");
-          return;
-        }
-
-        const chosenSource = overlay.querySelector('input[name="f2p-source-choice"]:checked')?.value;
-        const sourceUrl = chosenSource === "upstream" && repoInfo.parentNwo
-          ? `https://github.com/${repoInfo.parentNwo}.git`
-          : repoInfo.cloneUrl;
-
+      const startBtn = overlay.querySelector('#f2p-start-cloud-import');
+      const errorText = document.createElement('p');
+      errorText.className = 'f2p-hint';
+      errorText.setAttribute('role', 'alert');
+      startBtn.parentElement.appendChild(errorText);
+      startBtn.addEventListener('click', async () => {
         startBtn.disabled = true;
-        startBtn.textContent = "正在启动导入...";
-
-        chrome.runtime.sendMessage({
-          action: "START_IMPORT",
-          data: {
-            sourceUrl,
-            targetName,
-            visibility: "private",
-            autoSubmit: settings.autoSubmit,
-            sourceRepo: repoInfo.repo,
-            sourceOwner: repoInfo.owner
-          }
-        }, (response) => {
+        errorText.textContent = '';
+        try {
+          const source = F2P.parseRepoUrl(chosenSourceUrl());
+          const targetName = F2P.validateRepoName(nameInput.value);
+          const response = await chrome.runtime.sendMessage({ action: 'START_IMPORT', data: { sourceUrl: source.cloneUrl, targetName } });
+          if (!response?.success) throw new Error(response?.error || '无法启动导入，请重新加载扩展后重试。');
           overlay.remove();
-        });
+        } catch (error) { errorText.textContent = error.message; startBtn.disabled = false; }
       });
     });
   }

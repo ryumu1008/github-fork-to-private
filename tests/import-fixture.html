@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Fork to Private 本地交互测试</title>
+<style>body{font:16px system-ui;padding:120px 24px 24px}label{display:block;margin:16px 0}input[type=text]{width:460px;padding:8px}button{padding:8px 14px}</style>
+<link rel="stylesheet" href="/style.css">
+<h1>本地测试表单</h1><p>此页只记录提交事件，不连接 GitHub，不创建仓库。</p>
+<form method="post" action="https://github.com/repositories/imports">
+<label>源地址 <input id="vcs_url" type="text" name="vcs_url" required></label>
+<label>目标名称 <input id="repository_name" type="text" name="repository[name]" required></label>
+<label><input id="repository_visibility_public" type="radio" name="repository[visibility]" value="public" checked> Public</label>
+<label><input id="repository_visibility_private" type="radio" name="repository[visibility]" value="private"> Private</label>
+<button id="native-submit" type="submit">GitHub 原生导入按钮（本地模拟）</button>
+</form><p id="receipt">尚未提交</p>
+<script>
+window.fixtureMessages=[];window.fixtureSubmissions=0;
+window.chrome={runtime:{sendMessage:async function(message){
+ window.fixtureMessages.push(message.action+':'+(message.status||''));
+ if(message.action==='CLAIM_IMPORT')return{success:true,task:{id:'00000000-0000-4000-8000-000000000001',sourceUrl:'https://github.com/example/demo.git',targetName:'demo-private',autoSubmit:false}};
+ return{success:true};
+}}};
+document.querySelector('form').addEventListener('submit',function(event){event.preventDefault();window.fixtureSubmissions++;document.getElementById('receipt').textContent='本地收到提交事件：'+window.fixtureSubmissions;});
+</script>
+<script src="/shared.js"></script><script src="/content_import.js"></script>

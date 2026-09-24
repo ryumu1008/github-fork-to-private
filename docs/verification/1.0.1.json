@@ -1,0 +1,45 @@
+{
+  "version": "1.0.1",
+  "baseline": "70e7ead2d2e1f1b9d57ca80e332d23ed0a21ef8d",
+  "automated_tests": {
+    "total": 54,
+    "passed": 54,
+    "cli": 34,
+    "worker_dom_ui": 20
+  },
+  "dependency_audit": {
+    "vulnerabilities": 0
+  },
+  "browser_fixture": {
+    "browser": "Ego isolated task space",
+    "public_selection": {
+      "submissions": 0,
+      "status": "needs_attention"
+    },
+    "native_private_submit": {
+      "submissions": 1,
+      "status": "submission_requested"
+    },
+    "real_github_import_performed": false
+  },
+  "git_copy_fixture": {
+    "real_git": true,
+    "github_commands": "local stubs only",
+    "branches": [
+      "trunk",
+      "feature",
+      "topic/nested"
+    ],
+    "tags": [
+      "v1",
+      "feature-release"
+    ],
+    "default_branch_preserved": "trunk",
+    "branch_and_tag_object_ids_match": true
+  },
+  "limitations": [
+    "Authenticated GitHub import not exercised: isolated browser was not logged in.",
+    "LFS network commands were mocked; real LFS object transfer was not exercised.",
+    "Existing Chrome extension has not been reloaded by this task."
+  ]
+}

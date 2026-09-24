@@ -1,76 +1,80 @@
-# GitHub 一键复制到私有 (Fork to Private)
+# GitHub 一键复制到私有（Fork to Private）
 
-<p align="center">
-  <img src="icons/icon128.png" width="96" height="96" alt="GitHub Fork to Private Icon" />
-</p>
+Chrome 扩展：将 GitHub 仓库复制到独立的私有仓库。支持 GitHub 云端导入，以及生成本地复制脚本。
 
-<p align="center">
-  <strong>一键将 GitHub 上的公开项目或已 Fork 仓库复制为完全独立的私有仓库，保留完整 Commit 历史与分支。</strong><br>
-  <em>One-click tool to duplicate any public or forked GitHub repository into a standalone private repository.</em>
-</p>
+当前版本：**1.0.1**。需要 Chrome / Chromium 106 或更新版本。
 
----
+## 安装与更新
 
-## 🌟 为什么需要这个插件？ / Why this extension?
+```sh
+git clone https://github.com/ryumu1008/github-fork-to-private.git
+```
 
-在 GitHub 上：
-* **公开 Fork 无法转为私有**：当你在 GitHub 上 Fork 一个公开项目后，官方限制该 Fork 必须保持公开，无法直接切换为私有。
-* **隐私与定制需求**：在二次开发、做私有笔记、测试配置或嵌入个人凭据时，公开 Fork 极易造成信息泄露。
+1. 打开 `chrome://extensions`，开启「开发者模式」。
+2. 点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的项目目录。
+3. 更新已有安装时：更新该目录的文件，在扩展卡片上点击「重新加载」，确认版本变为 **1.0.1**，再刷新已打开的 GitHub 页面。
+4. 如果使用 ZIP，请先解压，再选择解压后包含 `manifest.json` 的目录；不要选择 ZIP 本身。
 
-**GitHub Fork to Private** 通过 GitHub 官方原生的云端导入机制，无需在本地下载上传数以百兆的 Git 历史，一键在 GitHub 云端完成完整镜像，自动建立属于你的独立私有仓库！
+安装扩展不需要 Node.js、npm 或构建步骤。
 
----
+## 使用
 
-## ✨ 核心特性 / Features
+### 云端导入
 
-1. **GitHub 页面无缝注入**：在任何仓库主页的 Star / Fork 按钮旁自动注入 **「🔒 复制到私有」** 按钮。
-2. **免 Token 极速云端克隆**：
-   - 无需创建或配置 GitHub Personal Access Token (PAT)，直接复用浏览器已有登录会话。
-   - 自动填入源地址、目标仓库名（默认带 `-private` 后缀）。
-   - **强制私有校验**：提交前强制双重核验【Private】单选框处于已勾选状态，严防因页面结构或网络异常误建公开库。
-   - 3 秒倒计时自动启动导入，期间支持随时取消或手动检查。
-3. **防御钓鱼与仿冒触发 (Anti-CSRF Nonce)**：
-   - 杜绝通过恶意链接（如特制 Hash 链接）诱导用户自动克隆；只有用户在插件弹窗或页面按钮亲自触发生成的单次随机 Nonce，才被允许执行。
-4. **安全可靠的本地双 Remote 终端命令**：
-   - 自动包含 `set -euo pipefail` 严格容错，任何一步执行失败立即中断，绝不盲目继续；
-   - 代码推送前自动调用 `gh repo view` 二次校验远端库必须为【私有】，杜绝推送到已存在的同名公开库。
-5. **绝对安全与隐私 (Zero Tracking)**：
-   - 纯前端本地运行，不收集任何用户数据，不向任何第三方服务器发送请求。
+在 GitHub 仓库页面点击「复制到私有」，或打开工具栏上的扩展，填写源仓库和目标名称。
 
----
+扩展会打开 GitHub 官方导入页，填入地址和名称，选择 Private，并在提交前检查完整表单、源地址、名称和私有状态。默认三秒后提交，可取消倒计时，也可在设置中关闭自动提交。请核对导入页上选择的所属账号或组织。
 
-## 🚀 安装指南 / Installation
+- 只接受由本扩展发起、与当前标签页和页面身份一致的任务。外部构造的链接不能直接发起自动导入。
+- 找不到完整表单、输入发生变化或无法确认 Private 时停止，不盲目提交。
+- 每个任务分别保存，同时打开多个导入页不会覆盖彼此。
+- 历史中的「已发起提交，结果待确认」只说明已请求提交。**是否导入成功，请以 GitHub 页面的结果为准。**
+- 云端导入依赖 GitHub 当前页面结构和服务状态。源库为私有库时，GitHub 可能要求额外认证；扩展不会读取或填写凭据。
 
-1. 下载或克隆本仓库到本地：
-   ```bash
-   git clone https://github.com/<your-username>/github-fork-to-private.git
-   ```
-2. 打开 Chrome 浏览器，在地址栏访问：
-   ```text
-   chrome://extensions
-   ```
-3. 打开右上角的 **「开发者模式 (Developer mode)」**。
-4. 点击左上角的 **「加载已解压的扩展程序 (Load unpacked)」**。
-5. 选中本项目文件夹即可完成安装。
-6. （推荐）在 Chrome 工具栏右上角的拼图图标中，将 **Fork to Private** 固定在工具栏。
+### 本地终端复制
 
----
+准备 Git 与 GitHub CLI，并使用 `gh auth login --hostname github.com` 登录。点击「复制本地终端命令」，核对后粘贴到 Bash 或 Zsh 中执行。脚本在独立 Bash 子进程内运行。
 
-## 📖 使用方法 / Usage
+- 使用 **gh 当前登录的账号**，该账号可能与浏览器登录账号不同。
+- 自动展开默认 `~/Projects` 目录，在其下创建以目标仓库名命名的子目录。
+- 目标本地目录已存在、创建仓库失败、目标不是私有、远端非空或中途出错时停止。原文件不会被覆盖，也不会尝试删除已有远端仓库。
+- 复制全部 Git 分支和标签，保留源默认分支；origin 指向新私有仓库，upstream 保留源仓库且禁用推送。
+- 若安装了 Git LFS，脚本会尝试迁移全部 LFS 对象；未安装时明确提示只复制 Git 分支和标签，LFS 文件需另行迁移。
+- 中途失败可能留下已经创建的空私有仓库或部分本地副本。请核对后自行处理，脚本不会自动删除它们。
 
-### 方式 1：在 GitHub 网页上直接点击（最快捷）
-1. 打开任意你想转为私有的 GitHub 仓库主页。
-2. 点击右上角的 **「🔒 复制到私有」** 按钮。
-3. 在弹出的面板中确认仓库名称（如 `project-private`），点击 **「立即一键复制到私有仓库」**。
-4. 页面将自动跳转至云端导入页并在 3 秒内启动克隆，完成后自动进入你的新私有仓库。
+## 复制范围与限制
 
-### 方式 2：通过浏览器右上角插件图标
-1. 点击浏览器工具栏的插件图标。
-2. 若当前在 GitHub 页面，将自动读取仓库信息；若在其他页面，可手动粘贴 GitHub URL。
-3. 可选择直接云端导入，或点击「复制本地终端命令」在本地执行双 Remote 克隆。
+这是 Git 代码复制工具，**不是完整项目备份工具**。
 
----
+- GitHub Importer 不迁移 LFS 对象、Issues 和 Pull Requests；请参考 [GitHub Importer 官方限制](https://docs.github.com/en/migrations/importing-source-code/using-github-importer/about-github-importer)。
+- Git 分支/标签复制不包括 Releases 的附件、Issues、PR、项目设置、Actions Secrets 等平台数据。
+- 子模块中的外部仓库不会自动变成私有副本，其地址仍需自行处理。
+- 私有仓库不能替代密钥管理。不要把真实密钥提交到 Git 历史中。
 
-## 📄 开源许可 / License
+## 数据与权限
 
-本项目基于 [MIT License](LICENSE) 开源协议。
+扩展没有遥测或自建后端，不向开发者上传使用记录，不读取 cookie、密码或 Token。操作通过 GitHub 自己的页面和用户主动执行的本地 Git/gh 命令完成。
+
+- `storage`：保存本机设置和最近 30 条历史（源地址、目标名、时间、状态）。可在「历史记录」清空。
+- 临时导入任务保存在浏览器会话内，重启浏览器或重新加载扩展后失效；授权标识不保存到历史记录。
+- `activeTab`：用户打开弹窗时读取当前标签页地址。
+- `https://github.com/*`：显示仓库按钮并辅助填写 GitHub 导入表单。
+- 不申请读取所有标签页地址的 `tabs` 权限。
+
+## 开发、检查与打包
+
+需要 Node.js 22.13 或更新版本、Python 3、Git，以及运行 CLI 测试所需的 Bash 和 Zsh。
+
+```sh
+npm ci --ignore-scripts
+npm test
+npm run package
+```
+
+JS 运行文件无第三方依赖；jsdom 仅用于开发测试，不进入扩展 ZIP。打包输出为 `dist/github-fork-to-private-1.0.1.zip`，使用明确的文件清单，不包含 `.git`、测试、开发依赖或本机资料。
+
+回归测试覆盖任务串行领取、标签页/页面身份验证、并发、表单校验、原生按钮、危险输入、历史呈现及 Bash/Zsh 脚本。Git 分支/标签测试使用真实临时本地仓库和隔离的 GitHub 命令替身，不创建真实 GitHub 仓库。实际登录态、GitHub 页面改版和云端导入结果仍须在真实使用中确认。
+
+## 许可与反馈
+
+[MIT License](LICENSE)。安全问题请参阅 [SECURITY.md](SECURITY.md)。修改与验证记录见 [修改记录.md](https://github.com/ryumu1008/github-fork-to-private/blob/main/修改记录.md)。

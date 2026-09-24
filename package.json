@@ -1,0 +1,13 @@
+{
+  "name": "github-fork-to-private",
+  "version": "1.0.1",
+  "private": true,
+  "description": "Regression tests and reproducible packaging for the Chrome extension",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "package": "python3 scripts/package.py"
+  },
+  "engines": { "node": ">=22.13.0" },
+  "license": "MIT",
+  "devDependencies": { "jsdom": "29.0.1" }
+}
