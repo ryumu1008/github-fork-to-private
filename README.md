@@ -1,8 +1,12 @@
 # GitHub 一键复制到私有（Fork to Private）
 
+**简体中文** | [English](README.en.md)
+
 Chrome 扩展：将 GitHub 仓库复制到独立的私有仓库。支持 GitHub 云端导入，以及生成本地复制脚本。
 
 当前版本：**1.0.1**。需要 Chrome / Chromium 106 或更新版本。
+
+本说明提供中文和英文版本；扩展界面目前为中文。
 
 **[下载 Chrome 扩展安装包（1.0.1 ZIP）](https://github.com/ryumu1008/github-fork-to-private/releases/download/v1.0.1/github-fork-to-private-1.0.1.zip)** · [查看发布版本](https://github.com/ryumu1008/github-fork-to-private/releases/latest)
 
