@@ -57,3 +57,31 @@ test('upgrade preserves settings and converts unverified legacy success records'
   assert.equal(w.local.state.history[0].status,'legacy_unknown');
   assert.equal('targetUrl' in w.local.state.history[0],false);
 });
+
+test('automatic rename remains bound to its task, document, permission, and pre-submit state',async()=>{
+ const w=worker(),a=await w.start(),b=await w.start();
+ w.session.state['f2p-task:'+a.taskId].autoRename=true;
+ await w.send({action:'CLAIM_IMPORT',taskId:a.taskId},w.sender(a.tabId));
+ await w.send({action:'CLAIM_IMPORT',taskId:b.taskId},w.sender(b.tabId));
+ const next=(task,sender=w.sender(task.tabId))=>w.send({action:'NEXT_IMPORT_NAME',taskId:task.taskId},sender);
+ assert.equal((await next(a,w.sender(b.tabId))).success,false);
+ assert.equal((await next(a,w.sender(a.tabId,'new-document'))).success,false);
+ assert.equal((await next(b)).success,false);
+ assert.equal((await next(a)).targetName,'demo-private-2');
+ assert.equal(w.local.state.history.find(x=>x.id===a.historyId).targetName,'demo-private-2');
+ await w.send({action:'IMPORT_STATUS',taskId:a.taskId,status:'submission_requested'},w.sender(a.tabId));
+ assert.equal((await next(a)).success,false);
+});
+test('automatic rename is bounded and never exceeds GitHub name length',async()=>{
+ const w=worker(),a=await w.start('x'.repeat(100));w.session.state['f2p-task:'+a.taskId].autoRename=true;
+ await w.send({action:'CLAIM_IMPORT',taskId:a.taskId},w.sender(a.tabId));
+ for(let i=2;i<=20;i++){
+  const r=await w.send({action:'NEXT_IMPORT_NAME',taskId:a.taskId},w.sender(a.tabId));assert.equal(r.targetName.length,100);assert(r.targetName.endsWith('-'+i));
+ }
+ assert.equal((await w.send({action:'NEXT_IMPORT_NAME',taskId:a.taskId},w.sender(a.tabId))).success,false);
+});
+test('repository-button import opens in the same browser window',async()=>{
+ const w=worker();const r=await w.send({action:'START_IMPORT',data:{sourceUrl:'https://github.com/example/demo',targetName:'demo-private',autoRename:true}},
+  {id:w.chrome.runtime.id,frameId:0,tab:{id:8,windowId:42},url:'https://github.com/example/demo'});
+ assert.equal(r.success,true);assert.equal(w.tabs.get(r.tabId).windowId,42);
+});

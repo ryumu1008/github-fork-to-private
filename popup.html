@@ -293,7 +293,7 @@
       <span class="brand-icon">🔒</span>
       <span class="brand-title">Fork to Private</span>
     </div>
-    <span class="version-tag">v1.0.2</span>
+    <span class="version-tag">v1.1.0</span>
   </div>
 
   <div class="nav-tabs">
@@ -315,17 +315,20 @@
           <div class="repo-card-sub" id="current-repo-sub">正在读取当前标签页信息...</div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="target-repo-name">目标私有仓库名</label>
-          <input type="text" id="target-repo-name" class="input-box" placeholder="例如: repo-private" />
-        </div>
-
         <button type="button" class="btn-block btn-primary" id="btn-cloud-import">
-          🚀 一键云端复制到私有
+          🚀 一键复制到 Private
         </button>
-        <button type="button" class="btn-block btn-secondary" id="btn-copy-cli">
-          📋 复制本地终端命令
-        </button>
+        <p style="color:var(--text-muted);margin-bottom:12px;">自动填写、设为私有并提交；同名时自动加编号。</p>
+        <details>
+          <summary style="cursor:pointer;margin-bottom:10px;">更多选项：修改名称 / 本地复制</summary>
+          <div class="form-group">
+            <label class="form-label" for="target-repo-name">目标私有仓库名</label>
+            <input type="text" id="target-repo-name" class="input-box" placeholder="例如: repo-private" />
+          </div>
+          <button type="button" class="btn-block btn-secondary" id="btn-copy-cli">
+            📋 复制本地终端命令
+          </button>
+        </details>
       </div>
 
       <div id="no-repo-view" style="display:none;" class="empty-state">

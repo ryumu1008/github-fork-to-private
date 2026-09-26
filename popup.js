@@ -45,7 +45,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   onButton('btn-cloud-import', async () => {
     if (!currentRepo) throw new Error('请先打开 GitHub 仓库页面。');
-    await send('START_IMPORT', { sourceUrl: currentRepo.cloneUrl, targetName: F2P.validateRepoName(byId('target-repo-name').value) });
+    const targetName = F2P.validateRepoName(byId('target-repo-name').value);
+    await send('START_IMPORT', { sourceUrl: currentRepo.cloneUrl, targetName,
+      autoRename: targetName === F2P.defaultTargetName(currentRepo.repo, settings.defaultSuffix) });
     window.close();
   });
   onButton('btn-copy-cli', async () => {
@@ -55,7 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast('已复制。脚本使用 gh 当前登录的 GitHub 账号。');
   });
   byId('manual-source-url').addEventListener('input', () => {
-    try { const source = F2P.parseRepoUrl(byId('manual-source-url').value); byId('manual-target-name').value = source.repo + settings.defaultSuffix; } catch { /* An incomplete URL is normal while typing. */ }
+    try { const source = F2P.parseRepoUrl(byId('manual-source-url').value); byId('manual-target-name').value = F2P.defaultTargetName(source.repo, settings.defaultSuffix); } catch { /* An incomplete URL is normal while typing. */ }
   });
   onButton('btn-manual-import', async () => {
     const source = F2P.parseRepoUrl(byId('manual-source-url').value);
@@ -84,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (url.origin !== 'https://github.com' || parts.length < 2 || reserved.has(parts[0].toLowerCase())) return showNoRepo();
     currentRepo = F2P.parseRepoUrl(`https://github.com/${parts[0]}/${parts[1]}`);
     byId('current-repo-name').textContent = currentRepo.fullRepo;
-    byId('target-repo-name').value = currentRepo.repo + settings.defaultSuffix;
+    byId('target-repo-name').value = F2P.defaultTargetName(currentRepo.repo, settings.defaultSuffix);
     byId('current-repo-sub').textContent = 'GitHub 仓库；导入结果请以 GitHub 页面为准';
     byId('current-repo-view').style.display = 'block'; byId('no-repo-view').style.display = 'none';
     try {

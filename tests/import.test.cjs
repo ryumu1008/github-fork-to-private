@@ -7,18 +7,46 @@ const base=`<form method="post" action="https://github.com/repositories/imports"
 const modern=`<react-app app-name="repo-creation" initial-path="/new/import"><form novalidate><input name="The URL for your source repository"><input id="repository-name-input"><input type="radio" name="visibilityGroup" value="public" checked><input type="radio" name="visibilityGroup" value="private"><div class="InfoMessage-module__InfoMessage__fixture">You are creating a public repository in your personal account.</div><button type="submit">Begin import</button></form></react-app>`;
 async function page(options={}){
  const w=worker();if(options.auto===false)w.local.state.settings.autoSubmit=false;
- const a=await w.start();const dom=new JSDOM(options.html||base,{url:'https://github.com/new/import'+(options.hash??'#f2p_task='+a.taskId),runScripts:'outside-only'});
+ const a=await w.start();
+ if(options.autoRename)w.session.state['f2p-task:'+a.taskId].autoRename=true;const dom=new JSDOM(options.html||base,{url:'https://github.com/new/import'+(options.hash??'#f2p_task='+a.taskId),runScripts:'outside-only'});
  const win=dom.window,ticks=new Map();let intervalId=0,submits=0,nativeSubmitting=false,githubSubmits=0,nativeGetPrevented=false;
+ const appState={source:'',name:'',visibility:'public'},submittedData=[];
  if(options.react){
   const app=win.document.querySelector('react-app');
-  app.addEventListener('change',event=>{
-   if(event.target.name==='visibilityGroup' && !options.staleReactState)app.querySelector('[class*="InfoMessage-module__InfoMessage__"]').textContent=`You are creating a ${event.target.value} repository in your personal account.`;
+  const renderText=()=>{
+   app.querySelector('input[name="The URL for your source repository"]').value=appState.source;
+   app.querySelector('#repository-name-input').value=appState.name;
+  };
+  let inputEvents=0;
+  app.addEventListener('input',event=>{
+   const key=event.target.id==='repository-name-input'?'name':event.target.name==='The URL for your source repository'?'source':null;
+   if(!key || options.ignoreText || ++inputEvents<=(options.ignoreFirstInputs||0))return;
+   appState[key]=event.target.value;
+   event.target.defaultValue=event.target.value;
+   if(key==='name'){
+    app.querySelector('#RepoNameInput-is-available')?.remove();app.querySelector('#RepoNameInput-message')?.remove();
+    const status=win.document.createElement('span'),exists=options.takenNames?.includes(appState.name);
+    status.id=exists?'RepoNameInput-message':'RepoNameInput-is-available';
+    status.textContent=exists?`The repository ${appState.name} already exists on this account`:`${appState.name} is available.`;
+    app.querySelector('form').append(status);
+   }
   });
-  app.addEventListener('submit',event=>{githubSubmits++;nativeGetPrevented=event.defaultPrevented;event.preventDefault();});
+  app.addEventListener('change',event=>{
+   if(event.target.name==='visibilityGroup' && !options.staleReactState){
+    appState.visibility=event.target.value;
+    app.querySelector('[class*="InfoMessage-module__InfoMessage__"]').textContent=`You are creating a ${event.target.value} repository in your personal account.`;
+    if(options.replaceOnPrivate){
+     for(const input of app.querySelectorAll('input[type="text"],#repository-name-input,input[name="The URL for your source repository"]'))input.replaceWith(input.cloneNode(true));
+    }
+    renderText();
+   }
+  });
+  app.addEventListener('submit',event=>{githubSubmits++;submittedData.push({...appState});nativeGetPrevented=event.defaultPrevented;event.preventDefault();});
  }
  win.chrome={runtime:{sendMessage:msg=>w.send(msg,w.sender(a.tabId))}};
  const nativeTimeout=win.setTimeout.bind(win);
- win.setTimeout=(fn,ms)=>nativeTimeout(fn,ms===10000?20:ms===200?0:ms);
+ let now=Date.now();win.Date.now=()=>now;
+ win.setTimeout=(fn,ms)=>nativeTimeout(()=>{if(ms===100)now+=100;fn();},ms===10000?20:ms===100?0:ms);
  win.setInterval=fn=>{ticks.set(++intervalId,fn);return intervalId;};win.clearInterval=id=>ticks.delete(id);
  win.HTMLFormElement.prototype.requestSubmit=function(button){
   assert.equal(button.form,this);if(nativeSubmitting)return;
@@ -27,8 +55,9 @@ async function page(options={}){
   finally{setTimeout(()=>{nativeSubmitting=false;},0);}
  };
  win.eval(read('shared.js'));win.eval(read('content_import.js'));
- await new Promise(resolve=>setTimeout(resolve,35));
- return {w,a,dom,win,ticks,submits:()=>submits,githubSubmits:()=>githubSubmits,nativeGetPrevented:()=>nativeGetPrevented,async tick(){for(let i=0;i<3;i++)for(const fn of [...ticks.values()])fn();await new Promise(resolve=>setTimeout(resolve,10));}};
+ if(options.hash)await new Promise(resolve=>setTimeout(resolve,10));
+ else await until(()=>win.document.querySelector('#f2p-import-banner'));
+ return {w,a,dom,win,ticks,appState,submittedData,submits:()=>submits,githubSubmits:()=>githubSubmits,nativeGetPrevented:()=>nativeGetPrevented,async tick(){for(let i=0;i<3;i++)for(const fn of [...ticks.values()])fn();await new Promise(resolve=>setTimeout(resolve,10));}};
 }
 test('real DOM form is filled, Private selected, and only a submission attempt is recorded',async()=>{
  const p=await page();try{assert.equal(p.win.document.querySelector('#vcs_url').value,'https://github.com/example/demo.git');await p.tick();assert.equal(p.submits(),1);assert.equal(p.w.local.state.history[0].status,'submission_requested');await p.tick();assert.equal(p.submits(),1);}finally{p.dom.window.close();}
@@ -107,4 +136,31 @@ for(const [label,html] of [
  ['duplicate source',modern.replace('<input id="repository-name-input">','<input name="The URL for your source repository"><input id="repository-name-input">')]
 ])test('React '+label+' is rejected',async()=>{
  const p=await page({html,react:true});try{await p.tick();assert.equal(p.githubSubmits(),0);assert.equal(p.submits(),0);assert.equal(p.w.local.state.history[0].status,'needs_attention');}finally{p.dom.window.close();}
+});
+
+for(const options of [{replaceOnPrivate:true},{ignoreFirstInputs:1}])test('controlled fields survive app setup: '+JSON.stringify(options),async()=>{
+ const p=await page({html:modern,react:true,...options});try{
+  await p.tick();assert.deepEqual(p.submittedData,[{source:'https://github.com/example/demo.git',name:'demo-private',visibility:'private'}]);
+ }finally{p.dom.window.close();}
+});
+test('DOM text without application acknowledgement is never submitted',async()=>{
+ const p=await page({html:modern,react:true,ignoreText:true});try{
+  await p.tick();assert.equal(p.githubSubmits(),0);assert.equal(p.appState.source,'');assert.equal(p.w.local.state.history[0].status,'needs_attention');
+ }finally{p.dom.window.close();}
+});
+test('one-click collision advances name and history before submitting, without overwriting existing names',async()=>{
+ const p=await page({html:modern,react:true,autoRename:true,takenNames:['demo-private','demo-private-2']});try{
+  await p.tick();assert.equal(p.githubSubmits(),1);assert.equal(p.submittedData[0].name,'demo-private-3');assert.equal(p.w.local.state.history[0].targetName,'demo-private-3');
+ }finally{p.dom.window.close();}
+});
+test('custom-name collision stops instead of silently renaming',async()=>{
+ const p=await page({html:modern,react:true,takenNames:['demo-private']});try{
+  await p.tick();assert.equal(p.githubSubmits(),0);assert.match(p.win.document.body.textContent,/该仓库名已存在/);
+ }finally{p.dom.window.close();}
+});
+test('rendered application text changed during countdown blocks submission even if DOM property still matches',async()=>{
+ const p=await page({html:modern,react:true});try{
+  const source=p.win.document.querySelector('input[name="The URL for your source repository"]');source.defaultValue='';
+  await p.tick();assert.equal(p.githubSubmits(),0);
+ }finally{p.dom.window.close();}
 });

@@ -43,6 +43,12 @@
     })[character]);
   }
 
+  function defaultTargetName(repo, suffix) {
+    // GitHub repository names are limited to 100 characters, including our suffix.
+    const tail = suffix.slice(0, 99);
+    return validateRepoName(repo.slice(0, 100 - tail.length) + tail);
+  }
+
   function validateLocalDir(value) {
     const directory = safeText(value, "本地目录");
     if (!directory || directory.length > 4096 || (directory.startsWith("~") && directory !== "~" && !directory.startsWith("~/"))) {
@@ -163,7 +169,7 @@ printf '%s\\n' '这不是完整项目备份：Issues、PR、仓库设置等不�
     return "bash <<'F2P_PRIVATE_COPY_SCRIPT'\n" + body + "F2P_PRIVATE_COPY_SCRIPT\n";
   }
 
-  const api = Object.freeze({ parseRepoUrl, validateRepoName, escapeHtml, normalizeSettings, buildCliScript });
+  const api = Object.freeze({ parseRepoUrl, validateRepoName, escapeHtml, normalizeSettings, defaultTargetName, buildCliScript });
   root.F2P = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);

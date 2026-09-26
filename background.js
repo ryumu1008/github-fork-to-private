@@ -47,8 +47,10 @@ async function startImport(request, sender) {
   const id = crypto.randomUUID();
   const historyId = crypto.randomUUID();
   // Create the tab first, bind its ID, then navigate. A page cannot claim an unbound task.
-  const tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+  const tab = await chrome.tabs.create({ url: 'about:blank', active: false,
+    ...(Number.isInteger(sender.tab?.windowId) ? { windowId: sender.tab.windowId } : {}) });
   const task = { id, historyId, sourceUrl: source.cloneUrl, targetName, autoSubmit: normalized.autoSubmit,
+    baseName: targetName, autoRename: request.data?.autoRename === true, nameAttempt: 1,
     tabId: tab.id, state: 'pending', createdAt: Date.now(), expiresAt: Date.now() + TASK_TTL };
   try {
     await chrome.storage.session.set({ [TASK_PREFIX + id]: task });
@@ -84,7 +86,18 @@ async function dispatch(request, sender) {
     if (task.state !== 'pending') throw new Error('此任务已被使用，请从插件重新发起。');
     await chrome.storage.session.set({ [key]: { ...task, state: 'claimed', documentId: sender.documentId, expiresAt: Date.now() + CLAIM_TTL } });
     await historyUpdate(task.historyId, { status: 'ready' });
-    return { success: true, task: { id: task.id, sourceUrl: task.sourceUrl, targetName: task.targetName, autoSubmit: task.autoSubmit } };
+    return { success: true, task: { id: task.id, sourceUrl: task.sourceUrl, targetName: task.targetName,
+      autoSubmit: task.autoSubmit, autoRename: task.autoRename } };
+  }
+  if (request.action === 'NEXT_IMPORT_NAME') {
+    if (task.documentId !== sender.documentId || task.state !== 'claimed' || !task.autoRename) throw new Error('当前任务不能自动改名。');
+    const attempt = task.nameAttempt + 1;
+    if (attempt > 20) throw new Error('同名仓库较多，请在更多选项中指定其他名称。');
+    const suffix = `-${attempt}`;
+    const targetName = F2P.validateRepoName(task.baseName.slice(0, 100 - suffix.length) + suffix);
+    await chrome.storage.session.set({ [key]: { ...task, nameAttempt: attempt, targetName } });
+    await historyUpdate(task.historyId, { targetName });
+    return { success: true, targetName };
   }
   if (request.action === 'IMPORT_STATUS') {
     if (task.documentId !== sender.documentId) throw new Error('页面已更换，请重新发起。');

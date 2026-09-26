@@ -75,20 +75,98 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
+  function privateConfirmed(fields) {
+    return fields.privateRadio.checked && (!fields.react ||
+      [...fields.form.querySelectorAll('[class*="InfoMessage-module__InfoMessage__"]')]
+        .some(el => /You are creating a private repository\b/.test(el.textContent)));
+  }
+  function textConfirmed(fields) {
+    // The current React importer renders its controlled state back to the value
+    // attribute. A DOM property alone can look filled while React still has ''.
+    return !fields.react || (fields.source.defaultValue === task.sourceUrl && fields.name.defaultValue === task.targetName);
+  }
+  async function waitUntil(check, error, timeout = 10000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const result = check();
+      if (result) return result;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error(error);
+  }
+  function nameState(fields) {
+    if (!fields.react) return 'available';
+    const available = fields.form.querySelector('#RepoNameInput-is-available')?.textContent.trim();
+    if (available === `${task.targetName} is available.`) return 'available';
+    const error = fields.form.querySelector('#RepoNameInput-message')?.textContent.trim();
+    if (error === `The repository ${task.targetName} already exists on this account`) return 'exists';
+    return null;
+  }
+  async function prepare(initial) {
+    let edited = false;
+    let writing = false;
+    const write = operation => { writing = true; try { operation(); } finally { writing = false; } };
+    const onEdit = event => { if (event.isTrusted && !writing) edited = true; };
+    const blockSubmit = event => { event.preventDefault(); event.stopImmediatePropagation(); };
+    initial.form.addEventListener('input', onEdit, true);
+    initial.form.addEventListener('change', onEdit, true);
+    initial.form.addEventListener('submit', blockSubmit, true);
+    const current = () => {
+      if (edited) throw new Error('你已手动修改导入信息，自动填写已停止。请从插件重新发起。');
+      const fields = findForm();
+      if (!fields || fields.form !== initial.form) throw new Error('导入页面已变化，请从插件重新发起。');
+      return fields;
+    };
+    try {
+      // Establish React readiness through GitHub's own rendered private summary
+      // before writing either controlled text field.
+      if (!initial.privateRadio.checked) write(() => initial.privateRadio.click());
+      await waitUntil(() => privateConfirmed(current()), 'GitHub 尚未确认 Private，未提交。');
+      for (;;) {
+        // Only retry while preparing. Never overwrite edits during the countdown.
+        for (const [key, value] of [['source', task.sourceUrl], ['name', task.targetName]]) {
+          let confirmed = false;
+          for (let attempt = 0; attempt < 3 && !confirmed; attempt++) {
+            const fields = current();
+            write(() => {
+              // A previous event may have reached React's value tracker before
+              // the application accepted it. Give a retry a real value change.
+              if (attempt > 0) fill(fields[key], '');
+              fill(fields[key], value);
+            });
+            try {
+              await waitUntil(() => { const next = current(); return next[key].value === value && (!next.react || next[key].defaultValue === value); },
+                'GitHub 没有接收到填写内容，未提交。请刷新仓库页后重新点击插件。', 1500);
+              confirmed = true;
+            } catch (error) { if (edited || attempt === 2) throw error; }
+          }
+        }
+        const state = await waitUntil(() => nameState(current()), 'GitHub 尚未确认仓库名称可用，未提交。请检查页面提示后重试。');
+        if (state === 'available') return verify(initial.form);
+        if (!task.autoRename) throw new Error('该仓库名已存在，请在更多选项中使用其他名称。已有仓库不会被覆盖。');
+        task.targetName = (await message('NEXT_IMPORT_NAME')).targetName;
+      }
+    } finally {
+      initial.form.removeEventListener('input', onEdit, true);
+      initial.form.removeEventListener('change', onEdit, true);
+      initial.form.removeEventListener('submit', blockSubmit, true);
+    }
+  }
   function verify(expectedForm) {
     const fields = findForm();
     if (!fields || fields.form !== expectedForm || !expectedForm.isConnected) throw new Error('导入表单已变化，请从插件重新发起。');
     const { source, name, privateRadio } = fields;
     if (F2P.parseRepoUrl(source.value).cloneUrl !== task.sourceUrl || name.value !== task.targetName) throw new Error('源地址或仓库名称已改变。请检查后自行提交，或从插件重新发起。');
+    if (!textConfirmed(fields)) throw new Error('GitHub 尚未接收到地址或名称，已停止提交。请从插件重新发起。');
     const values = new FormData(expectedForm).getAll(privateRadio.name);
     if (!privateRadio.checked || values.length !== 1 || values[0] !== 'private') throw new Error('未确认仓库为私有，已停止提交。请检查 Private 选项。');
     if (fields.react) {
       // Check GitHub's rendered state as well as the radio DOM property, so a
       // failed React change event cannot leave the app planning a public repo.
-      const summaries = [...expectedForm.querySelectorAll('[class*="InfoMessage-module__InfoMessage__"]')];
-      if (!summaries.some(el => /You are creating a private repository\b/.test(el.textContent))) {
+      if (!privateConfirmed(fields)) {
         throw new Error('GitHub 尚未确认私有状态，请检查页面的 Private 提示后重新发起。');
       }
+      if (nameState(fields) !== 'available') throw new Error('GitHub 未确认目标名称可用，已停止提交。');
     }
     return fields;
   }
@@ -158,11 +236,7 @@
       const response = await message('CLAIM_IMPORT', { taskId: id });
       task = response.task;
       history.replaceState(null, '', location.pathname + location.search);
-      const fields = await waitForForm();
-      fill(fields.source, task.sourceUrl); fill(fields.name, task.targetName);
-      if (!fields.privateRadio.checked) fields.privateRadio.click();
-      await new Promise(resolve => setTimeout(resolve, 200));
-      verify(fields.form);
+      const fields = await prepare(await waitForForm());
       showReady(fields);
     } catch (error) { fail(error); }
   }

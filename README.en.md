@@ -4,11 +4,11 @@
 
 A Chrome extension that copies a GitHub repository into a separate private repository. It supports GitHub's web-based importer and can generate a script for copying a repository from your local terminal.
 
-Current version: **1.0.2**. Requires Chrome / Chromium 106 or later.
+Current version: **1.1.0**. Requires Chrome / Chromium 106 or later.
 
 This guide is available in Chinese and English. The extension's interface is currently in Chinese; this guide explains the relevant button labels.
 
-**[Download the Chrome extension (1.0.2 ZIP)](https://github.com/ryumu1008/github-fork-to-private/releases/download/v1.0.2/github-fork-to-private-1.0.2.zip)** · [View releases](https://github.com/ryumu1008/github-fork-to-private/releases/latest)
+**[Download the Chrome extension (1.1.0 ZIP)](https://github.com/ryumu1008/github-fork-to-private/releases/download/v1.1.0/github-fork-to-private-1.1.0.zip)** · [View releases](https://github.com/ryumu1008/github-fork-to-private/releases/latest)
 
 ## Installation and updates
 
@@ -17,7 +17,7 @@ This guide is available in Chinese and English. The extension's interface is cur
 1. Download the ZIP using the link above and **extract it to a folder you will keep**. The package includes a Chinese quick-start guide named `安装说明.txt`.
 2. Enter `chrome://extensions` in Chrome's address bar and enable **Developer mode** in the upper-right corner.
 3. Click **Load unpacked** and select the extracted folder **containing `manifest.json`**.
-4. Confirm that the extension shows version **1.0.2**, then refresh any open GitHub pages. You can pin the extension from Chrome's puzzle-piece toolbar menu.
+4. Confirm that the extension shows version **1.1.0**, then refresh any open GitHub pages. You can pin the extension from Chrome's puzzle-piece toolbar menu.
 
 Installation does not require Git, Node.js, npm, or a build step. To install manually in Chrome, extract the ZIP and load its folder; double-clicking the ZIP does not install the extension. See [Chrome's official instructions](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked). Keep the extracted folder in place after installation. Moving or deleting it may prevent the extension from working.
 
@@ -37,11 +37,13 @@ Follow the Chrome loading steps above and select the project folder. After updat
 
 ### Import through GitHub
 
-On a GitHub repository page, click **复制到私有** (Copy to private). You can also open the extension from the toolbar and enter the source repository and target name.
+Sign in to GitHub, open the **public repository** you want to copy, and click **复制到私有** (Copy to private). Alternatively, open the extension popup and click **一键复制到 Private** (One-click copy to Private). **No source URL, name, username, or token needs to be entered.**
 
-The extension opens GitHub's official import page, fills in the URL and name, selects **Private**, and checks the complete form, source URL, name, and visibility before submitting. By default, it submits after a three-second countdown. You can cancel the countdown or turn off automatic submission in settings. Check the account or organization selected as the owner on the import page.
+The extension uses the current repository URL, names the copy `original-name-private`, selects Private, and waits for GitHub to acknowledge the fields and confirm name availability before automatically submitting after three seconds. If the name is taken, it tries `-2`, `-3`, and so on, up to 20 candidates. Existing repositories are never overwritten. GitHub then processes the import, which may take several minutes.
 
-Version 1.0.2 supports GitHub's current import page and also checks GitHub's displayed private visibility state. Older versions stop when they cannot recognize the new form; update the extension before trying again.
+Open **更多选项** (More options) to choose a custom name, copy an upstream repository, or generate local copy commands. A conflicting custom name stops the operation instead of being silently changed. The default suffix and automatic submission can be changed in settings; an existing disabled auto-submit setting remains respected. Check the account or organization selected as owner on the import page.
+
+Version 1.1.0 waits for GitHub to confirm Private before filling the controlled inputs one at a time. It verifies values rendered back by GitHub and its name-availability result, with bounded retries during preparation. Editing fields during the countdown blocks submission. After reloading an already claimed import page, restart from the repository page.
 
 - Only tasks started by this extension and bound to the current tab and page are accepted. A link constructed outside the extension cannot directly trigger an automatic import.
 - If the complete form cannot be found, the inputs change, or Private visibility cannot be confirmed, the extension stops without submitting.
@@ -89,11 +91,11 @@ npm test
 npm run package
 ```
 
-The JavaScript runtime files have no third-party dependencies. jsdom is used only for development tests and is not included in the extension ZIP. Packaging writes `dist/github-fork-to-private-1.0.2.zip` using an explicit file list that excludes `.git`, tests, development dependencies, and local personal files.
+The JavaScript runtime files have no third-party dependencies. jsdom is used only for development tests and is not included in the extension ZIP. Packaging writes `dist/github-fork-to-private-1.1.0.zip` using an explicit file list that excludes `.git`, tests, development dependencies, and local personal files.
 
-The 65 regression tests cover serialized task claiming, tab/page identity checks, concurrent tasks, both legacy and current import forms, native submit buttons, unsafe input, history rendering, and Bash/Zsh scripts. Automated branch and tag tests use temporary local Git repositories and isolated GitHub command substitutes; they do not create real GitHub repositories.
+The 76 regression tests cover serialized task claiming, tab/page identity checks, concurrent tasks, one-click entry, automatic collision renaming, controlled inputs, both legacy and current import forms, native submit buttons, unsafe input, history rendering, and Bash/Zsh scripts. Automated branch and tag tests use temporary local Git repositories and isolated GitHub command substitutes; they do not create real GitHub repositories.
 
-Separately, the extension completed a cloud import in a signed-in browser, and the local copy script was tested against the real GitHub service. Both produced independent private repositories with matching branches, tags, Git objects, and default branches; unauthenticated access was denied. See the [1.0.2 verification results](https://github.com/ryumu1008/github-fork-to-private/blob/main/docs/verification/1.0.2.json). This does not guarantee compatibility with future GitHub page changes. Real LFS object migration remains unverified, and you should check GitHub's result for each import.
+The 1.1.0 live browser checks cover default one-click copying and automatic collision renaming; see the [1.1.0 verification results](https://github.com/ryumu1008/github-fork-to-private/blob/main/docs/verification/1.1.0.json). Earlier real-service verification of the local copy script is documented in the [1.0.2 results](https://github.com/ryumu1008/github-fork-to-private/blob/main/docs/verification/1.0.2.json). These checks do not guarantee compatibility with future GitHub page changes. Real LFS object migration remains unverified; check GitHub's result for each import.
 
 ## License and feedback
 

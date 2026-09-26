@@ -40,10 +40,18 @@
   }
 
   function injectButton() {
-    if (document.getElementById("f2p-private-copy-btn")) return;
-
     const repoInfo = getRepoDetails();
     if (!repoInfo) return;
+    const existingButton = document.getElementById('f2p-private-copy-btn');
+    if (existingButton) {
+      if (existingButton.dataset.repo !== repoInfo.fullRepo) {
+        existingButton.dataset.repo = repoInfo.fullRepo;
+        existingButton.disabled = false;
+        existingButton.querySelector('.f2p-btn-text').textContent = '复制到私有';
+        existingButton.parentElement.querySelector('[role="alert"]').textContent = '';
+      }
+      return;
+    }
 
     // Locate header actions container
     // Matches GitHub's various container structures
@@ -62,6 +70,7 @@
 
     const btn = document.createElement("button");
     btn.id = "f2p-private-copy-btn";
+    btn.dataset.repo = repoInfo.fullRepo;
     btn.type = "button";
     btn.className = "btn btn-sm f2p-btn";
     btn.title = "一键将此项目复制为完全独立的私有仓库（保留全部历史）";
@@ -73,13 +82,30 @@
       <span class="f2p-btn-text">复制到私有</span>
     `;
 
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.preventDefault();
       const current = getRepoDetails();
-      if (current) showModal(current);
+      if (!current || btn.disabled) return;
+      btn.disabled = true;
+      const label = btn.querySelector('.f2p-btn-text');
+      label.textContent = '正在启动…';
+      error.textContent = '';
+      try {
+        const settings = F2P.normalizeSettings((await chrome.storage.local.get('settings')).settings);
+        const response = await chrome.runtime.sendMessage({ action: 'START_IMPORT', data: {
+          sourceUrl: current.cloneUrl, targetName: F2P.defaultTargetName(current.repo, settings.defaultSuffix), autoRename: true
+        } });
+        if (!response?.success) throw new Error(response?.error || '无法启动复制，请重新加载扩展后重试。');
+        label.textContent = '已开始复制';
+      } catch (cause) { error.textContent = cause.message; btn.disabled = false; label.textContent = '复制到私有'; }
     });
 
-    btnWrapper.appendChild(btn);
+    const more = document.createElement('button');
+    more.id = 'f2p-more-options'; more.type = 'button'; more.className = 'btn btn-sm';
+    more.textContent = '更多选项'; more.title = '自定义名称、选择上游或生成本地复制命令';
+    more.addEventListener('click', () => { const current = getRepoDetails(); if (current) showModal(current); });
+    const error = document.createElement('span'); error.setAttribute('role', 'alert');
+    btnWrapper.append(btn, more, error);
 
     // Insert near fork button if possible, else append
     const forkBtn = container.querySelector("#fork-button")?.closest("li") || container.lastElementChild;
@@ -98,7 +124,7 @@
     chrome.storage.local.get(["settings"], (res) => {
       const settings = F2P.normalizeSettings(res.settings);
 
-      const defaultTargetName = `${repoInfo.repo}${settings.defaultSuffix}`;
+      const defaultTargetName = F2P.defaultTargetName(repoInfo.repo, settings.defaultSuffix);
 
       const overlay = document.createElement("div");
       overlay.id = "f2p-modal-overlay";
@@ -268,7 +294,8 @@
         try {
           const source = F2P.parseRepoUrl(chosenSourceUrl());
           const targetName = F2P.validateRepoName(nameInput.value);
-          const response = await chrome.runtime.sendMessage({ action: 'START_IMPORT', data: { sourceUrl: source.cloneUrl, targetName } });
+          const response = await chrome.runtime.sendMessage({ action: 'START_IMPORT', data: { sourceUrl: source.cloneUrl, targetName,
+            autoRename: targetName === defaultTargetName } });
           if (!response?.success) throw new Error(response?.error || '无法启动导入，请重新加载扩展后重试。');
           overlay.remove();
         } catch (error) { errorText.textContent = error.message; startBtn.disabled = false; }

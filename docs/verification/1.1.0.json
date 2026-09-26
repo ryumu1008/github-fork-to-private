@@ -1,0 +1,43 @@
+{
+  "date": "2026-09-26",
+  "version": "1.1.0",
+  "baseline_commit": "bc9ed12c2002031f77633f87ff5df4f1bdba525a",
+  "automated_tests": {
+    "total": 76,
+    "passed": 76
+  },
+  "browser_import": {
+    "browser": "Ego Chromium with the actual unpacked extension",
+    "scenarios": [
+      "One repository-button click with default name; no import-page input or submit interaction",
+      "Repeat from the same source; GitHub reports collision; extension automatically selects the next numbered name"
+    ],
+    "github_completion_page_observed": true,
+    "private": true,
+    "independent_repository": true,
+    "anonymous_api_status": 404,
+    "branches": 1,
+    "tags": 2,
+    "all_branch_and_tag_object_ids_match": true,
+    "default_branch": "main",
+    "source_main_commit": "bc9ed12c2002031f77633f87ff5df4f1bdba525a"
+  },
+  "review": {
+    "task_binding_and_rename_limits": "independent read-only review passed",
+    "screenshot_root_cause": "Not established: the separate Chrome installation could not be inspected. React input acknowledgement and direct one-click entry were strengthened and live-tested."
+  },
+  "limitations": [
+    "Source repositories in this live test were public; private source repositories can require authentication.",
+    "Real Git LFS object migration was not exercised.",
+    "GitHub still owns import completion; history records a submission attempt rather than claiming completion.",
+    "The separate Google Chrome extension management UI was blocked by the computer-control tool; its installed version and reload were not verified."
+  ],
+  "package": {
+    "files": 17,
+    "bytes": 37838,
+    "sha256": "fbfdad4a51f89975855fd6fdd2e6f40d110a1de94d5d6133e80864c18e3fe50c",
+    "source_bytes_match": true,
+    "integrity": "pass",
+    "sensitive_patterns": "none"
+  }
+}

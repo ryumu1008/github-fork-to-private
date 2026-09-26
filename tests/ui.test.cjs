@@ -2,9 +2,9 @@ const { test }=require('node:test');
 const assert=require('node:assert/strict');
 const { JSDOM }=require('jsdom');
 const { read,until }=require('./helpers.cjs');
-function setup(html,url,settings={}){
+function setup(html,url,settings={},success=false){
  const dom=new JSDOM(html,{url,runScripts:'outside-only'}),win=dom.window;const messages=[];let clipboard='';
- win.chrome={storage:{local:{get(keys,cb){const result={settings:{defaultSuffix:'-copy',defaultLocalDir:'~/Projects',autoSubmit:false,...settings},history:[{targetName:'<img src=x onerror=alert(1)>',sourceUrl:'<em>fake</em>',createdAt:'2026-09-25T00:00:00Z',status:'submission_requested'}]};if(cb)cb(result);return Promise.resolve(result);},set(){return Promise.resolve();}}},runtime:{sendMessage:async message=>{messages.push(message);return {success:false,error:'模拟后台拒绝'};},onMessage:{addListener(){}}},tabs:{query:async()=>[{id:1,url:'https://github.com/example/demo'}],sendMessage:async()=>({currentUser:'browser-user',isFork:false})}};
+ win.chrome={storage:{local:{get(keys,cb){const result={settings:{defaultSuffix:'-copy',defaultLocalDir:'~/Projects',autoSubmit:false,...settings},history:[{targetName:'<img src=x onerror=alert(1)>',sourceUrl:'<em>fake</em>',createdAt:'2026-09-25T00:00:00Z',status:'submission_requested'}]};if(cb)cb(result);return Promise.resolve(result);},set(){return Promise.resolve();}}},runtime:{sendMessage:async message=>{messages.push(message);return {success,error:'模拟后台拒绝'};},onMessage:{addListener(){}}},tabs:{query:async()=>[{id:1,url:'https://github.com/example/demo'}],sendMessage:async()=>({currentUser:'browser-user',isFork:false})}};
  Object.defineProperty(win.navigator,'clipboard',{value:{writeText:async text=>{clipboard=text;}}});
  win.eval(read('shared.js'));
  return {dom,win,messages,clipboard:()=>clipboard};
@@ -30,7 +30,7 @@ test('repository modal escapes metadata and generates from latest SPA URL',async
  const p=setup('<meta name="user-login" content="&quot;&gt;&lt;img src=x&gt;"><ul class="pagehead-actions"><li>Fork</li></ul>','https://github.com/example/first');try{
   p.win.eval(read('content_repo.js'));await until(()=>p.win.document.getElementById('f2p-private-copy-btn'));
   p.win.history.pushState(null,'','/example/second');
-  p.win.document.getElementById('f2p-private-copy-btn').click();
+  p.win.document.getElementById('f2p-more-options').click();
   await until(()=>p.win.document.getElementById('f2p-modal-overlay'));
   assert.equal(p.win.document.getElementById('f2p-target-name').value,'second-copy');
   assert.equal(p.win.document.querySelectorAll('#f2p-modal-overlay img').length,0);
@@ -39,6 +39,25 @@ test('repository modal escapes metadata and generates from latest SPA URL',async
   p.win.document.getElementById('f2p-target-name').value='$(printf BAD)';
   p.win.document.getElementById('f2p-target-name').dispatchEvent(new p.win.Event('input'));
   p.win.document.getElementById('f2p-start-cloud-import').click();await new Promise(r=>setTimeout(r,10));
-  assert.equal(p.messages.length,0);assert(p.win.document.querySelector('[role="alert"]').textContent.length>0);
+  assert.equal(p.messages.length,0);assert(p.win.document.querySelector('#f2p-modal-overlay [role="alert"]').textContent.length>0);
+ }finally{p.dom.window.close();}
+});
+
+test('repository primary button starts from latest URL with no modal or required input',async()=>{
+ const p=setup('<ul class="pagehead-actions"><li>Fork</li></ul>','https://github.com/example/first');try{
+  p.win.eval(read('content_repo.js'));await until(()=>p.win.document.getElementById('f2p-private-copy-btn'));
+  p.win.history.pushState(null,'','/example/second');p.win.document.getElementById('f2p-private-copy-btn').click();
+  await until(()=>p.messages.length===1);
+  assert.deepEqual(JSON.parse(JSON.stringify(p.messages[0])),{action:'START_IMPORT',data:{sourceUrl:'https://github.com/example/second.git',targetName:'second-copy',autoRename:true}});
+  assert.equal(p.win.document.getElementById('f2p-modal-overlay'),null);
+ }finally{p.dom.window.close();}
+});
+
+test('successful primary launch is deduplicated but SPA navigation enables the next repository',async()=>{
+ const p=setup('<ul class="pagehead-actions"><li>Fork</li></ul>','https://github.com/example/first',{},true);try{
+  p.win.eval(read('content_repo.js'));await until(()=>p.win.document.getElementById('f2p-private-copy-btn'));
+  const button=p.win.document.getElementById('f2p-private-copy-btn');button.click();button.click();await until(()=>p.messages.length===1);assert(button.disabled);
+  p.win.history.pushState(null,'','/example/second');p.win.document.dispatchEvent(new p.win.Event('turbo:load'));
+  assert.equal(button.disabled,false);button.click();await until(()=>p.messages.length===2);assert.equal(p.messages[1].data.sourceUrl,'https://github.com/example/second.git');
  }finally{p.dom.window.close();}
 });
