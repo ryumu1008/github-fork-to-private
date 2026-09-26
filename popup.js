@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   onButton('btn-cloud-import', async () => {
     if (!currentRepo) throw new Error('请先打开 GitHub 仓库页面。');
     const targetName = F2P.validateRepoName(byId('target-repo-name').value);
-    await send('START_IMPORT', { sourceUrl: currentRepo.cloneUrl, targetName,
+    await send('START_IMPORT', { sourceUrl: currentRepo.cloneUrl, targetName, mode: 'automatic',
       autoRename: targetName === F2P.defaultTargetName(currentRepo.repo, settings.defaultSuffix) });
     window.close();
   });

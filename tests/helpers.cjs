@@ -29,8 +29,8 @@ function worker(options = {}) {
   vm.runInContext(read('background.js'), ctx, { filename: 'background.js' });
   const popup = { id: chrome.runtime.id, url: chrome.runtime.getURL('popup.html') };
   function send(request, sender = popup) { return new Promise(resolve => handler(copy(request), sender, resolve)); }
-  async function start(name = 'demo-private') {
-    const result = await send({ action: 'START_IMPORT', data: { sourceUrl: 'https://github.com/example/demo', targetName: name } });
+  async function start(name = 'demo-private', extra = {}) {
+    const result = await send({ action: 'START_IMPORT', data: { sourceUrl: 'https://github.com/example/demo', targetName: name, ...extra } });
     if (!result.success) return result;
     const tab = tabs.get(result.tabId);
     const taskId = new URLSearchParams(new URL(tab.url).hash.slice(1)).get('f2p_task');

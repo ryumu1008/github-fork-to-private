@@ -1,0 +1,49 @@
+{
+  "date": "2026-09-26",
+  "version": "1.1.1",
+  "automated_tests": {
+    "total": 80,
+    "local_full_suite_before_last_test": 79,
+    "local_import_suite_after_last_test": 33,
+    "failures": 0
+  },
+  "browser_recovery": {
+    "before": {
+      "checked": true,
+      "summary": "You are creating a public repository in your personal account."
+    },
+    "after": {
+      "checked": true,
+      "aria": "true",
+      "summary": "You are creating a private repository in your personal account."
+    },
+    "realm": "isolated-world"
+  },
+  "browser_import": {
+    "browser": "Ego Chromium, actual unpacked extension",
+    "source": "chubbyguan/chubbyskills",
+    "interaction": "One repository button click; no import-page input or submit interaction",
+    "github_completion_page_observed": true,
+    "private": true,
+    "independent_repository": true,
+    "anonymous_api_status": 404,
+    "source_main_commit": "63135c89e3562106529c48f6ebeeb6ed93ce279e",
+    "branches": 5,
+    "tags": 3,
+    "all_branch_and_tag_object_ids_match": true,
+    "default_branch": "main"
+  },
+  "package": {
+    "files": 17,
+    "bytes": 38544,
+    "sha256": "b1e605ff3957eeafea03cdaf5ae39103b1a2c5aa5b3cb913c3de6fe73d221480",
+    "source_bytes_match": true,
+    "integrity": "pass",
+    "sensitive_patterns": "none"
+  },
+  "limitations": [
+    "The separate Google Chrome installed version has not been read back; reload and refresh are still required there.",
+    "Private source credentials and real LFS migration were not exercised.",
+    "GitHub owns final import completion; history does not call a submission attempt completed."
+  ]
+}

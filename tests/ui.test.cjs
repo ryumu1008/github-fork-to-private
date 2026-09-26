@@ -21,6 +21,7 @@ test('popup uses saved settings, safe history, working generator and visible bac
   assert.match(p.win.document.querySelector('.history-item').textContent,/结果待确认/);
   p.win.document.getElementById('btn-cloud-import').click();await until(()=>p.win.document.getElementById('toast-msg').textContent==='模拟后台拒绝');
   assert.equal(p.win.document.getElementById('btn-cloud-import').disabled,false);
+  assert.equal(p.messages.at(-1).data.mode,'automatic');
   p.win.document.getElementById('manual-source-url').value='https://evil.example/owner/repo';
   p.win.document.getElementById('manual-target-name').value='valid';const count=p.messages.length;
   p.win.document.getElementById('btn-manual-import').click();await new Promise(r=>setTimeout(r,10));assert.equal(p.messages.length,count);
@@ -48,7 +49,7 @@ test('repository primary button starts from latest URL with no modal or required
   p.win.eval(read('content_repo.js'));await until(()=>p.win.document.getElementById('f2p-private-copy-btn'));
   p.win.history.pushState(null,'','/example/second');p.win.document.getElementById('f2p-private-copy-btn').click();
   await until(()=>p.messages.length===1);
-  assert.deepEqual(JSON.parse(JSON.stringify(p.messages[0])),{action:'START_IMPORT',data:{sourceUrl:'https://github.com/example/second.git',targetName:'second-copy',autoRename:true}});
+  assert.deepEqual(JSON.parse(JSON.stringify(p.messages[0])),{action:'START_IMPORT',data:{sourceUrl:'https://github.com/example/second.git',targetName:'second-copy',autoRename:true,mode:'automatic'}});
   assert.equal(p.win.document.getElementById('f2p-modal-overlay'),null);
  }finally{p.dom.window.close();}
 });

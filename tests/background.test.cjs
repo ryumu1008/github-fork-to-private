@@ -85,3 +85,11 @@ test('repository-button import opens in the same browser window',async()=>{
   {id:w.chrome.runtime.id,frameId:0,tab:{id:8,windowId:42},url:'https://github.com/example/demo'});
  assert.equal(r.success,true);assert.equal(w.tabs.get(r.tabId).windowId,42);
 });
+
+test('explicit one-click automatic mode submits despite old manual setting without rewriting it',async()=>{
+ const w=worker({local:storage({settings:{autoSubmit:false},history:[]})});
+ const a=await w.start('demo-private',{mode:'automatic'}),r=await w.send({action:'CLAIM_IMPORT',taskId:a.taskId},w.sender(a.tabId));
+ assert.equal(r.task.automatic,true);assert.equal(r.task.autoSubmit,true);assert.equal(w.local.state.settings.autoSubmit,false);
+ const b=await w.start('manual-private'),manual=await w.send({action:'CLAIM_IMPORT',taskId:b.taskId},w.sender(b.tabId));
+ assert.equal(manual.task.autoSubmit,false);assert.equal(manual.task.automatic,false);
+});

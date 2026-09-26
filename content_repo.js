@@ -93,7 +93,7 @@
       try {
         const settings = F2P.normalizeSettings((await chrome.storage.local.get('settings')).settings);
         const response = await chrome.runtime.sendMessage({ action: 'START_IMPORT', data: {
-          sourceUrl: current.cloneUrl, targetName: F2P.defaultTargetName(current.repo, settings.defaultSuffix), autoRename: true
+          sourceUrl: current.cloneUrl, targetName: F2P.defaultTargetName(current.repo, settings.defaultSuffix), autoRename: true, mode: 'automatic'
         } });
         if (!response?.success) throw new Error(response?.error || '无法启动复制，请重新加载扩展后重试。');
         label.textContent = '已开始复制';
@@ -294,7 +294,7 @@
         try {
           const source = F2P.parseRepoUrl(chosenSourceUrl());
           const targetName = F2P.validateRepoName(nameInput.value);
-          const response = await chrome.runtime.sendMessage({ action: 'START_IMPORT', data: { sourceUrl: source.cloneUrl, targetName,
+          const response = await chrome.runtime.sendMessage({ action: 'START_IMPORT', data: { sourceUrl: source.cloneUrl, targetName, mode: 'automatic',
             autoRename: targetName === defaultTargetName } });
           if (!response?.success) throw new Error(response?.error || '无法启动导入，请重新加载扩展后重试。');
           overlay.remove();

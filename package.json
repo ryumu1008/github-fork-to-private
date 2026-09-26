@@ -1,6 +1,6 @@
 {
   "name": "github-fork-to-private",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Regression tests and reproducible packaging for the Chrome extension",
   "scripts": {

@@ -49,7 +49,8 @@ async function startImport(request, sender) {
   // Create the tab first, bind its ID, then navigate. A page cannot claim an unbound task.
   const tab = await chrome.tabs.create({ url: 'about:blank', active: false,
     ...(Number.isInteger(sender.tab?.windowId) ? { windowId: sender.tab.windowId } : {}) });
-  const task = { id, historyId, sourceUrl: source.cloneUrl, targetName, autoSubmit: normalized.autoSubmit,
+  const automatic = request.data?.mode === 'automatic';
+  const task = { id, historyId, sourceUrl: source.cloneUrl, targetName, automatic, autoSubmit: automatic || normalized.autoSubmit,
     baseName: targetName, autoRename: request.data?.autoRename === true, nameAttempt: 1,
     tabId: tab.id, state: 'pending', createdAt: Date.now(), expiresAt: Date.now() + TASK_TTL };
   try {
@@ -87,7 +88,7 @@ async function dispatch(request, sender) {
     await chrome.storage.session.set({ [key]: { ...task, state: 'claimed', documentId: sender.documentId, expiresAt: Date.now() + CLAIM_TTL } });
     await historyUpdate(task.historyId, { status: 'ready' });
     return { success: true, task: { id: task.id, sourceUrl: task.sourceUrl, targetName: task.targetName,
-      autoSubmit: task.autoSubmit, autoRename: task.autoRename } };
+      autoSubmit: task.autoSubmit, autoRename: task.autoRename, automatic: task.automatic } };
   }
   if (request.action === 'NEXT_IMPORT_NAME') {
     if (task.documentId !== sender.documentId || task.state !== 'claimed' || !task.autoRename) throw new Error('当前任务不能自动改名。');

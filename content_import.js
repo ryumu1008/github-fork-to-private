@@ -120,8 +120,23 @@
     try {
       // Establish React readiness through GitHub's own rendered private summary
       // before writing either controlled text field.
-      if (!initial.privateRadio.checked) write(() => initial.privateRadio.click());
-      await waitUntil(() => privateConfirmed(current()), 'GitHub 尚未确认 Private，未提交。');
+      for (let attempt = 0; !privateConfirmed(current()); attempt++) {
+        const fields = current();
+        write(() => {
+          if (fields.react && (fields.privateRadio.checked || attempt > 0)) {
+            // React can track checked=true while its application state is still
+            // Public. A further click then produces no change. Expose unchecked
+            // through a plain event (no native mouse activation), then select
+            // Private normally. Submission stays blocked throughout recovery.
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked').set.call(fields.privateRadio, false);
+            fields.privateRadio.dispatchEvent(new Event('click', { bubbles: true }));
+          }
+          fields.privateRadio.click();
+        });
+        try {
+          await waitUntil(() => privateConfirmed(current()), 'GitHub 尚未确认 Private，未提交。', 1500);
+        } catch (error) { if (edited || attempt >= 2) throw error; }
+      }
       for (;;) {
         // Only retry while preparing. Never overwrite edits during the countdown.
         for (const [key, value] of [['source', task.sourceUrl], ['name', task.targetName]]) {
@@ -219,7 +234,11 @@
       } catch (error) { fail(error); }
     }
     start.addEventListener('click', execute);
-    if (task.autoSubmit) {
+    if (task.automatic) {
+      start.hidden = true; cancel.hidden = true;
+      countdown.textContent = '校验通过，正在自动提交…';
+      execute();
+    } else if (task.autoSubmit) {
       let seconds = 3; countdown.textContent = `${seconds} 秒后提交`;
       timer = setInterval(() => { seconds -= 1; countdown.textContent = `${seconds} 秒后提交`; if (seconds <= 0) execute(); }, 1000);
     } else { countdown.textContent = '请核对后手动开始。'; cancel.hidden = true; }

@@ -7,12 +7,30 @@ const base=`<form method="post" action="https://github.com/repositories/imports"
 const modern=`<react-app app-name="repo-creation" initial-path="/new/import"><form novalidate><input name="The URL for your source repository"><input id="repository-name-input"><input type="radio" name="visibilityGroup" value="public" checked><input type="radio" name="visibilityGroup" value="private"><div class="InfoMessage-module__InfoMessage__fixture">You are creating a public repository in your personal account.</div><button type="submit">Begin import</button></form></react-app>`;
 async function page(options={}){
  const w=worker();if(options.auto===false)w.local.state.settings.autoSubmit=false;
- const a=await w.start();
+ const a=await w.start('demo-private',options.automatic?{mode:'automatic'}:{});
  if(options.autoRename)w.session.state['f2p-task:'+a.taskId].autoRename=true;const dom=new JSDOM(options.html||base,{url:'https://github.com/new/import'+(options.hash??'#f2p_task='+a.taskId),runScripts:'outside-only'});
  const win=dom.window,ticks=new Map();let intervalId=0,submits=0,nativeSubmitting=false,githubSubmits=0,nativeGetPrevented=false;
+ let preparationProbes=0;
  const appState={source:'',name:'',visibility:'public'},submittedData=[];
  if(options.react){
   const app=win.document.querySelector('react-app');
+  if(options.checkedButPublic){
+   const radio=app.querySelector('[value="private"]');
+   // A controlled radio whose tracker remembers true but app state remains Public.
+   radio.checked=true;let tracked=true;
+   app.addEventListener('click',event=>{
+    if(event.target!==radio)return;
+    if(tracked===radio.checked){event.stopImmediatePropagation();return;}
+    tracked=radio.checked;
+   },true);
+  }
+  if(options.probePreparation)app.addEventListener('click',event=>{
+   if(event.target.value==='private' && !event.target.checked){
+    preparationProbes++;
+    const form=event.target.form;form.requestSubmit(form.querySelector('button[type="submit"]'));
+    assert.equal(githubSubmits,0);assert.equal(submits,0);
+   }
+  },true);
   const renderText=()=>{
    app.querySelector('input[name="The URL for your source repository"]').value=appState.source;
    app.querySelector('#repository-name-input').value=appState.name;
@@ -57,7 +75,7 @@ async function page(options={}){
  win.eval(read('shared.js'));win.eval(read('content_import.js'));
  if(options.hash)await new Promise(resolve=>setTimeout(resolve,10));
  else await until(()=>win.document.querySelector('#f2p-import-banner'));
- return {w,a,dom,win,ticks,appState,submittedData,submits:()=>submits,githubSubmits:()=>githubSubmits,nativeGetPrevented:()=>nativeGetPrevented,async tick(){for(let i=0;i<3;i++)for(const fn of [...ticks.values()])fn();await new Promise(resolve=>setTimeout(resolve,10));}};
+ return {w,a,dom,win,ticks,appState,submittedData,preparationProbes:()=>preparationProbes,submits:()=>submits,githubSubmits:()=>githubSubmits,nativeGetPrevented:()=>nativeGetPrevented,async tick(){for(let i=0;i<3;i++)for(const fn of [...ticks.values()])fn();await new Promise(resolve=>setTimeout(resolve,10));}};
 }
 test('real DOM form is filled, Private selected, and only a submission attempt is recorded',async()=>{
  const p=await page();try{assert.equal(p.win.document.querySelector('#vcs_url').value,'https://github.com/example/demo.git');await p.tick();assert.equal(p.submits(),1);assert.equal(p.w.local.state.history[0].status,'submission_requested');await p.tick();assert.equal(p.submits(),1);}finally{p.dom.window.close();}
@@ -162,5 +180,23 @@ test('rendered application text changed during countdown blocks submission even 
  const p=await page({html:modern,react:true});try{
   const source=p.win.document.querySelector('input[name="The URL for your source repository"]');source.defaultValue='';
   await p.tick();assert.equal(p.githubSubmits(),0);
+ }finally{p.dom.window.close();}
+});
+
+test('checked Private with stale Public state recovers and submits without user interaction',async()=>{
+ const p=await page({html:modern,react:true,checkedButPublic:true,automatic:true,auto:false});try{
+  await until(()=>p.githubSubmits()===1);assert.deepEqual(p.submittedData,[{source:'https://github.com/example/demo.git',name:'demo-private',visibility:'private'}]);
+  assert.equal(p.ticks.size,0);assert.equal(p.win.document.querySelector('.f2p-banner-btn').hidden,true);
+ }finally{p.dom.window.close();}
+});
+test('automatic mode still refuses a permanently stale Public state',async()=>{
+ const p=await page({html:modern,react:true,checkedButPublic:true,staleReactState:true,automatic:true});try{
+  assert.equal(p.githubSubmits(),0);assert.equal(p.submits(),0);assert.equal(p.w.local.state.history[0].status,'needs_attention');
+ }finally{p.dom.window.close();}
+});
+
+test('submission is blocked during unchecked recovery, then occurs once after Private is confirmed',async()=>{
+ const p=await page({html:modern,react:true,checkedButPublic:true,automatic:true,probePreparation:true});try{
+  await until(()=>p.githubSubmits()===1);assert.equal(p.preparationProbes(),1);assert.equal(p.submittedData[0].visibility,'private');
  }finally{p.dom.window.close();}
 });
