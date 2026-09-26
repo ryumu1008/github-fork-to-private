@@ -93,5 +93,19 @@
     "integrity": "pass",
     "sensitive_patterns": "none",
     "manifest_resources_present": true
+  },
+  "release": {
+    "tag": "v1.1.2",
+    "commit": "0e70e60ae2b22bcfdf6bbf0abd61c2db92a4c402",
+    "anonymous_download_status": 200,
+    "download_bytes_match_local": true,
+    "sha256": "d217e6e28418c75357ad3a1f2af0a1f49e06058ade7cbd4817cb3a426e275382",
+    "github_ci": "https://github.com/ryumu1008/github-fork-to-private/actions/runs/36236283186",
+    "github_ci_result": "success"
+  },
+  "browser_cleanup": {
+    "ego_installed_version_readback": "1.1.2",
+    "task_space_closed": true,
+    "preserved_unmanaged_tabs": 0
   }
 }
