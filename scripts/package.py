@@ -8,7 +8,8 @@ import zipfile
 root = Path(__file__).resolve().parents[1]
 manifest = json.loads((root / 'manifest.json').read_text())
 files = {'manifest.json', 'shared.js', 'background.js', 'popup.html', 'popup.js',
-         'content_repo.js', 'content_import.js', 'style.css', 'LICENSE', 'README.md', 'SECURITY.md'}
+         'content_repo.js', 'content_import.js', 'style.css', 'LICENSE', 'README.md', 'SECURITY.md',
+         '安装说明.txt'}
 files.update(manifest['icons'].values())
 for filename in files:
     if not (root / filename).is_file():

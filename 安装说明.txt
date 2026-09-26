@@ -1,0 +1,30 @@
+GitHub 一键复制到私有 — Chrome 扩展 1.0.1
+
+安装（不需要编程，也不需要安装开发工具）
+1. 将这个 ZIP 解压到一个长期保留的文件夹，例如“文档/Chrome扩展”。
+2. 打开 Chrome，在地址栏输入 chrome://extensions 并回车。
+3. 开启右上角“开发者模式”。
+4. 点击“加载已解压的扩展程序”。
+5. 选择解压后包含 manifest.json 的文件夹，不要选择 ZIP 文件。
+6. 确认扩展显示版本 1.0.1。刷新 GitHub 页面，即可使用“复制到私有”。
+
+提示
+- 安装后不要删除或移动扩展文件夹。
+- Chrome 需要以上手动加载步骤，双击 ZIP 不能自动安装。
+- 可以点击 Chrome 工具栏的拼图按钮，将本扩展固定到工具栏。
+- 需要 Chrome / Chromium 106 或更新版本。
+
+更新
+下载新版本，将解压后的文件更新到原先加载的扩展目录。
+然后在 chrome://extensions 点击扩展卡片上的“重新加载”，核对版本并刷新 GitHub 页面。
+如果自行修改过源码，请先备份再更新。手动安装不会自动更新。
+
+使用与限制
+打开需要复制的 GitHub 仓库，点击“复制到私有”，核对源地址、目标名称和所属账号。
+扩展会辅助填写 GitHub 的导入表单；是否导入成功，以 GitHub 显示的结果为准。
+GitHub 云端导入不包含 LFS 对象、Issues、PR 等平台数据。
+“本地终端复制”是可选功能，只有使用它时才需要 Git 和已登录的 GitHub CLI。
+完整说明见包内 README.md；安全说明见 SECURITY.md。
+
+项目主页：https://github.com/ryumu1008/github-fork-to-private
+下载新版本：https://github.com/ryumu1008/github-fork-to-private/releases/latest

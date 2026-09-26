@@ -4,18 +4,30 @@ Chrome 扩展：将 GitHub 仓库复制到独立的私有仓库。支持 GitHub 
 
 当前版本：**1.0.1**。需要 Chrome / Chromium 106 或更新版本。
 
+**[下载 Chrome 扩展安装包（1.0.1 ZIP）](https://github.com/ryumu1008/github-fork-to-private/releases/download/v1.0.1/github-fork-to-private-1.0.1.zip)** · [查看发布版本](https://github.com/ryumu1008/github-fork-to-private/releases/latest)
+
 ## 安装与更新
+
+### 下载 ZIP 安装（推荐）
+
+1. 点击上方下载链接，将 ZIP **解压到一个长期保留的文件夹**。包内附有 `安装说明.txt`。
+2. 在 Chrome 地址栏输入 `chrome://extensions` 并打开，开启右上角「开发者模式」。
+3. 点击「加载已解压的扩展程序」，选择解压后**包含 `manifest.json` 的文件夹**。
+4. 确认扩展版本为 **1.0.1**，刷新已打开的 GitHub 页面即可使用。可在工具栏的拼图按钮里固定本扩展。
+
+安装不需要 Git、Node.js、npm 或构建步骤。Chrome 手动安装需要先解压再加载目录，不能通过双击 ZIP 自动安装；步骤参考 [Chrome 官方说明](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)。安装后不要删除或移动这个文件夹，否则扩展可能无法继续使用。
+
+### 更新已有安装
+
+下载新版本并解压，将文件更新到原先加载的扩展目录，再到 `chrome://extensions` 点击该扩展卡片上的「重新加载」，核对版本并刷新 GitHub 页面。开发者自行修改过文件时，请先备份再更新。手动安装不会自动更新。
+
+### 从源码安装（开发者）
 
 ```sh
 git clone https://github.com/ryumu1008/github-fork-to-private.git
 ```
 
-1. 打开 `chrome://extensions`，开启「开发者模式」。
-2. 点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的项目目录。
-3. 更新已有安装时：更新该目录的文件，在扩展卡片上点击「重新加载」，确认版本变为 **1.0.1**，再刷新已打开的 GitHub 页面。
-4. 如果使用 ZIP，请先解压，再选择解压后包含 `manifest.json` 的目录；不要选择 ZIP 本身。
-
-安装扩展不需要 Node.js、npm 或构建步骤。
+按上面的 Chrome 加载步骤选择项目目录即可。Git 更新源码后，也需要重新加载扩展并刷新 GitHub 页面。
 
 ## 使用
 
