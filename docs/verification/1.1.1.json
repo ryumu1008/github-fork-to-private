@@ -5,7 +5,8 @@
     "total": 80,
     "local_full_suite_before_last_test": 79,
     "local_import_suite_after_last_test": 33,
-    "failures": 0
+    "failures": 0,
+    "github_ci_passed": 80
   },
   "browser_recovery": {
     "before": {
@@ -45,5 +46,18 @@
     "The separate Google Chrome installed version has not been read back; reload and refresh are still required there.",
     "Private source credentials and real LFS migration were not exercised.",
     "GitHub owns final import completion; history does not call a submission attempt completed."
-  ]
+  ],
+  "release": {
+    "tag": "v1.1.1",
+    "commit": "91a4fecf27092b1abc7c4c5d2cc0fad244dc6926",
+    "anonymous_download_status": 200,
+    "download_bytes_match_local": true,
+    "github_ci": "https://github.com/ryumu1008/github-fork-to-private/actions/runs/36233751726",
+    "github_ci_result": "success"
+  },
+  "browser_cleanup": {
+    "ego_installed_version_readback": "1.1.1",
+    "task_space_closed": true,
+    "preserved_unmanaged_tabs": 0
+  }
 }
