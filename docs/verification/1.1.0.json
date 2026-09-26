@@ -39,5 +39,20 @@
     "source_bytes_match": true,
     "integrity": "pass",
     "sensitive_patterns": "none"
+  },
+  "release": {
+    "tag": "v1.1.0",
+    "commit": "95e546c2d84494f5820f3bb985f0bec07fb74f79",
+    "anonymous_download_status": 200,
+    "download_bytes_match_local": true,
+    "github_ci": "https://github.com/ryumu1008/github-fork-to-private/actions/runs/36232592311",
+    "github_ci_result": "success"
+  },
+  "browser_cleanup": {
+    "ego_installed_version_readback": "1.1.0",
+    "extension_card_errors_visible": false,
+    "task_space_closed": true,
+    "preserved_unmanaged_tabs": 0,
+    "separate_chrome_reload": "Blocked by computer-control URL policy; requires user action"
   }
 }
