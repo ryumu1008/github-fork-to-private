@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-26",
+  "version": "1.0.1",
+  "path_tested": "unmodified buildCliScript output executed in zsh",
+  "private": true,
+  "independent_repository": true,
+  "anonymous_api_status": 404,
+  "branches": 1,
+  "tags": 1,
+  "all_branch_and_tag_object_ids_match": true,
+  "default_branch": "main",
+  "upstream_push_disabled": true,
+  "source_main_commit": "fe51eb5d9769e147fd7b687387907665902d8b57",
+  "lfs_tested": false,
+  "browser_import_tested": true,
+  "browser_verification": "1.0.2.json"
+}

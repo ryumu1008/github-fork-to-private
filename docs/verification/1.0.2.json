@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-26",
+  "version": "1.0.2",
+  "baseline_version": "1.0.1",
+  "automated_tests": {
+    "total": 65,
+    "passed": 65
+  },
+  "browser_import": {
+    "browser": "Ego Chromium, installed unpacked extension",
+    "baseline_result": "Stopped safely: current GitHub React form was not recognized",
+    "fixed_result": "GitHub displayed: Importing complete! Your new repository is ready.",
+    "private": true,
+    "independent_repository": true,
+    "anonymous_api_status": 404,
+    "branches": 1,
+    "tags": 1,
+    "all_branch_and_tag_object_ids_match": true,
+    "default_branch": "main",
+    "source_main_commit": "fe51eb5d9769e147fd7b687387907665902d8b57",
+    "source_tag_commit": "b6e828910ef6c13d2957148bfe9e9f5e74fec8cc"
+  },
+  "limitations": [
+    "Real LFS object transfer was not exercised.",
+    "The browser test used Ego Chromium; the user’s separate Chrome installation was not reloaded."
+  ],
+  "package": {
+    "files": 17,
+    "bytes": 34911,
+    "sha256": "c68ace3bbbc099683156ebb9f02dd5113858f63956ce20bb7994cd0cdb72a0b5",
+    "integrity": "pass",
+    "source_bytes_match": true,
+    "resource_references": "pass",
+    "sensitive_patterns": "none"
+  }
+}

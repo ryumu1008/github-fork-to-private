@@ -4,6 +4,7 @@
   const sourceSelector = '#vcs_url, input[name="vcs_url"], input[name="subversion_url"], input[placeholder*="clone URL"]';
   const nameSelector = '#repository_name, input[name="repository[name]"]';
   const privateSelector = '#repository_visibility_private, input[type="radio"][name="repository[visibility]"][value="private"]';
+  const reactSourceSelector = 'input[name="The URL for your source repository"], input[name="Your old repository\'s clone URL"]';
   let timer;
   let submitted = false;
   let task;
@@ -34,19 +35,29 @@
     content.append(copy, close); banner.append(content); document.body.prepend(banner);
   }
   function findForm() {
-    const source = document.querySelector(sourceSelector);
+    const legacySource = document.querySelector(sourceSelector);
+    const source = legacySource || document.querySelector(reactSourceSelector);
     const form = source?.form;
-    if (!form || form.method.toLowerCase() !== 'post') return null;
+    if (!form) return null;
     const action = new URL(form.action, location.href);
-    if (action.origin !== 'https://github.com' || !['/new/import', '/repositories/imports', '/repositories/import'].includes(action.pathname.replace(/\/$/, ''))) return null;
-    const name = form.querySelector(nameSelector);
-    const privateRadio = form.querySelector(privateSelector);
+    const react = !legacySource && !!form.closest('react-app[app-name="repo-creation"][initial-path="/new/import"]');
+    if (action.origin !== 'https://github.com') return null;
+    if (react) {
+      // GitHub's React importer posts through its submit handler. Its HTML form
+      // intentionally has no action/method; never allow a native GET fallback.
+      if (form.hasAttribute('action') || form.hasAttribute('method') || action.pathname !== '/new/import') return null;
+    } else if (form.method.toLowerCase() !== 'post' || !['/new/import', '/repositories/imports', '/repositories/import'].includes(action.pathname.replace(/\/$/, ''))) return null;
+    const name = form.querySelector(react ? '#repository-name-input' : nameSelector);
+    const privateRadio = form.querySelector(react ? 'input[type="radio"][name="visibilityGroup"][value="private"]' : privateSelector);
     const submit = form.querySelector('button[type="submit"], input[type="submit"]');
     if (!name || !privateRadio || !submit || [source, name, privateRadio, submit].some(el => el.form !== form || el.disabled)) return null;
-    if (privateRadio.type !== 'radio' || privateRadio.name !== 'repository[visibility]' || privateRadio.value !== 'private') return null;
+    if (privateRadio.type !== 'radio' || privateRadio.name !== (react ? 'visibilityGroup' : 'repository[visibility]') || privateRadio.value !== 'private') return null;
+    if (react && (form.querySelectorAll(reactSourceSelector).length !== 1 || form.querySelectorAll('#repository-name-input').length !== 1
+      || form.querySelectorAll('input[type="radio"][name="visibilityGroup"][value="private"]').length !== 1
+      || submit.hasAttribute('formaction') || submit.hasAttribute('formmethod'))) return null;
     if (submit.formNoValidate || (submit.hasAttribute('formaction') && submit.formAction !== form.action)
       || (submit.hasAttribute('formmethod') && submit.formMethod.toLowerCase() !== 'post')) return null;
-    return { form, source, name, privateRadio, submit };
+    return { form, source, name, privateRadio, submit, react };
   }
   function waitForForm() {
     return new Promise((resolve, reject) => {
@@ -71,6 +82,14 @@
     if (F2P.parseRepoUrl(source.value).cloneUrl !== task.sourceUrl || name.value !== task.targetName) throw new Error('源地址或仓库名称已改变。请检查后自行提交，或从插件重新发起。');
     const values = new FormData(expectedForm).getAll(privateRadio.name);
     if (!privateRadio.checked || values.length !== 1 || values[0] !== 'private') throw new Error('未确认仓库为私有，已停止提交。请检查 Private 选项。');
+    if (fields.react) {
+      // Check GitHub's rendered state as well as the radio DOM property, so a
+      // failed React change event cannot leave the app planning a public repo.
+      const summaries = [...expectedForm.querySelectorAll('[class*="InfoMessage-module__InfoMessage__"]')];
+      if (!summaries.some(el => /You are creating a private repository\b/.test(el.textContent))) {
+        throw new Error('GitHub 尚未确认私有状态，请检查页面的 Private 提示后重新发起。');
+      }
+    }
     return fields;
   }
   function showReady(fields) {
@@ -90,6 +109,7 @@
     const guard = event => {
       if (allowNativeSubmission) {
         allowNativeSubmission = false;
+        if (fields.react) event.preventDefault();
         try { verify(fields.form); } catch (error) { event.preventDefault(); event.stopImmediatePropagation(); fail(error); }
         return;
       }
