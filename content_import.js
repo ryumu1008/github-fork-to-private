@@ -21,14 +21,20 @@
     if (text !== undefined) element.textContent = text;
     return element;
   }
+  function makeBanner(className) {
+    const banner = make('div', `${className} notranslate`);
+    banner.id = 'f2p-import-banner';
+    banner.setAttribute('translate', 'no');
+    banner.dataset.version = chrome.runtime.getManifest().version;
+    return banner;
+  }
   function showError(error) {
     clearInterval(timer);
     removeBanner();
-    const banner = make('div', 'f2p-banner f2p-banner-danger');
-    banner.id = 'f2p-import-banner';
+    const banner = makeBanner('f2p-banner f2p-banner-danger');
     const content = make('div', 'f2p-banner-content');
     const copy = make('div');
-    copy.append(make('div', 'f2p-banner-title', '已停止自动导入'), make('div', 'f2p-banner-desc', error.message || String(error)));
+    copy.append(make('div', 'f2p-banner-title', `已停止自动导入 · v${banner.dataset.version}`), make('div', 'f2p-banner-desc', error.message || String(error)));
     const close = make('button', 'f2p-banner-cancel-btn', '关闭提示');
     close.type = 'button';
     close.addEventListener('click', () => banner.remove());
@@ -76,9 +82,16 @@
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
   function privateConfirmed(fields) {
-    return fields.privateRadio.checked && (!fields.react ||
-      [...fields.form.querySelectorAll('[class*="InfoMessage-module__InfoMessage__"]')]
-        .some(el => /You are creating a private repository\b/.test(el.textContent)));
+    if (!fields.privateRadio.checked) return false;
+    if (!fields.react) return true;
+    // React renders aria-checked from its application state. The checked DOM
+    // property alone can be stale, while the visible summary can be translated.
+    const group = [...fields.form.elements].filter(el => el.type === 'radio' && el.name === 'visibilityGroup');
+    return group.length >= 2 && group.length <= 3 && new Set(group.map(el => el.value)).size === group.length &&
+      group.every(el => ['private', 'public', 'internal'].includes(el.value)) &&
+      fields.privateRadio.getAttribute('aria-checked') === 'true' &&
+      group.every(radio => radio === fields.privateRadio ||
+        (!radio.checked && radio.getAttribute('aria-checked') === 'false'));
   }
   function textConfirmed(fields) {
     // The current React importer renders its controlled state back to the value
@@ -96,10 +109,17 @@
   }
   function nameState(fields) {
     if (!fields.react) return 'available';
-    const available = fields.form.querySelector('#RepoNameInput-is-available')?.textContent.trim();
-    if (available === `${task.targetName} is available.`) return 'available';
-    const error = fields.form.querySelector('#RepoNameInput-message')?.textContent.trim();
-    if (error === `The repository ${task.targetName} already exists on this account`) return 'exists';
+    if (fields.name.value !== task.targetName || fields.name.defaultValue !== task.targetName) return null;
+    // Bind the status to this exact name, never to the wording of a sentence.
+    // The boundary also rejects stale results for e.g. demo-private-2.
+    const escaped = task.targetName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const mentionsName = element => element && new RegExp(`(^|[^A-Za-z0-9_.-])${escaped}($|[^A-Za-z0-9_.-])`).test(element.textContent);
+    const available = fields.form.querySelectorAll('#RepoNameInput-is-available');
+    const errors = fields.form.querySelectorAll('#RepoNameInput-message');
+    if (available.length === 1 && !errors.length && fields.name.getAttribute('aria-invalid') !== 'true' && mentionsName(available[0])) return 'available';
+    // Only a rejection naming this candidate may advance an automatic name.
+    // Errors without a candidate binding must not consume the rename attempts.
+    if (!available.length && errors.length === 1 && fields.name.getAttribute('aria-invalid') === 'true' && mentionsName(errors[0])) return 'unavailable';
     return null;
   }
   async function prepare(initial) {
@@ -118,7 +138,7 @@
       return fields;
     };
     try {
-      // Establish React readiness through GitHub's own rendered private summary
+      // Establish React readiness through GitHub's own rendered private state
       // before writing either controlled text field.
       for (let attempt = 0; !privateConfirmed(current()); attempt++) {
         const fields = current();
@@ -140,6 +160,16 @@
       for (;;) {
         // Only retry while preparing. Never overwrite edits during the countdown.
         for (const [key, value] of [['source', task.sourceUrl], ['name', task.targetName]]) {
+          if (key === 'name' && current().react && current().name.value) {
+            const oldError = current().form.querySelector('#RepoNameInput-message')?.textContent;
+            write(() => fill(current().name, ''));
+            await waitUntil(() => {
+              const next = current();
+              return next.name.value === '' && next.name.defaultValue === '' &&
+                !next.form.querySelector('#RepoNameInput-is-available') &&
+                (!oldError || next.form.querySelector('#RepoNameInput-message')?.textContent !== oldError);
+            }, 'GitHub 尚未重置名称检查，未提交。');
+          }
           let confirmed = false;
           for (let attempt = 0; attempt < 3 && !confirmed; attempt++) {
             const fields = current();
@@ -158,7 +188,7 @@
         }
         const state = await waitUntil(() => nameState(current()), 'GitHub 尚未确认仓库名称可用，未提交。请检查页面提示后重试。');
         if (state === 'available') return verify(initial.form);
-        if (!task.autoRename) throw new Error('该仓库名已存在，请在更多选项中使用其他名称。已有仓库不会被覆盖。');
+        if (!task.autoRename) throw new Error('该仓库名不可用，请在更多选项中使用其他名称。已有仓库不会被覆盖。');
         task.targetName = (await message('NEXT_IMPORT_NAME')).targetName;
       }
     } finally {
@@ -187,7 +217,7 @@
   }
   function showReady(fields) {
     removeBanner();
-    const banner = make('div', 'f2p-banner'); banner.id = 'f2p-import-banner';
+    const banner = makeBanner('f2p-banner');
     const content = make('div', 'f2p-banner-content');
     const left = make('div');
     const title = make('div', 'f2p-banner-title', '复制到私有仓库');

@@ -1,0 +1,97 @@
+{
+  "date": "2026-09-26",
+  "version": "1.1.2",
+  "automated_tests": {
+    "total": 88,
+    "passed": 88,
+    "failed": 0,
+    "independent_import_review_passed": 41
+  },
+  "translation_reproduction": {
+    "method": "Manually translate status text in the real GitHub form without changing inputs or state attributes",
+    "before": {
+      "old_private_check": true,
+      "old_name_check": true
+    },
+    "after": {
+      "old_private_check": false,
+      "old_name_check": false,
+      "private_checked": true,
+      "private_aria_checked": "true"
+    },
+    "original_user_screenshot_cause": "Not proven uniquely; installed version in everyday Chrome has not been read back"
+  },
+  "browser_tests": [
+    {
+      "source": "ryumu1008/github-fork-to-private",
+      "scenario": "english",
+      "interaction": "One repository button click; no import-page input or submit action",
+      "github_completion_page_observed": true,
+      "private": true,
+      "independent_repository": true,
+      "anonymous_status": 404,
+      "branches": 1,
+      "tags": 4,
+      "all_branch_and_tag_object_ids_match": true,
+      "default_branch": "main",
+      "source_default_branch_commit": "4b0df12cfd0196f8f354e91e597df145b99d5ad1"
+    },
+    {
+      "source": "chubbyguan/chubbyskills",
+      "scenario": "english",
+      "interaction": "One repository button click; no import-page input or submit action",
+      "github_completion_page_observed": true,
+      "private": true,
+      "independent_repository": true,
+      "anonymous_status": 404,
+      "branches": 5,
+      "tags": 3,
+      "all_branch_and_tag_object_ids_match": true,
+      "default_branch": "main",
+      "source_default_branch_commit": "63135c89e3562106529c48f6ebeeb6ed93ce279e"
+    },
+    {
+      "source": "chubbyguan/chubbyskills",
+      "scenario": "simulated-Chinese-translation-and-slow-network",
+      "interaction": "One repository button click; no import-page input or submit action",
+      "github_completion_page_observed": true,
+      "private": true,
+      "independent_repository": true,
+      "anonymous_status": 404,
+      "branches": 5,
+      "tags": 3,
+      "all_branch_and_tag_object_ids_match": true,
+      "default_branch": "main",
+      "source_default_branch_commit": "63135c89e3562106529c48f6ebeeb6ed93ce279e"
+    }
+  ],
+  "limitations": [
+    "Actual installed extension tested in Ego Chromium; everyday Google Chrome must still be reloaded and its version checked.",
+    "Chinese text replacement and wrapper insertion were simulated, not a test of every translation extension or the Chrome translator UI.",
+    "Candidate-specific service errors can consume bounded rename attempts; only explicit name availability permits submission.",
+    "Translations that change the repository identifier may still cause a safe stop.",
+    "Private source credentials and actual LFS migration were not exercised.",
+    "GitHub owns final import completion; extension history records a submission attempt, not completion."
+  ],
+  "translation_probe": {
+    "only_visible_status_text_modified": true,
+    "simulated_network_latency_ms": 1200,
+    "translated_visibility_messages": 2,
+    "translated_name_rejections": 2,
+    "translated_available_results": 1,
+    "observed_submit_events": 1,
+    "private_checked_at_submit": true,
+    "private_aria_checked_at_submit": "true",
+    "public_checked_at_submit": false,
+    "public_aria_checked_at_submit": "false"
+  },
+  "package": {
+    "files": 17,
+    "bytes": 39856,
+    "sha256": "d217e6e28418c75357ad3a1f2af0a1f49e06058ade7cbd4817cb3a426e275382",
+    "source_bytes_match": true,
+    "integrity": "pass",
+    "sensitive_patterns": "none",
+    "manifest_resources_present": true
+  }
+}

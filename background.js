@@ -93,7 +93,7 @@ async function dispatch(request, sender) {
   if (request.action === 'NEXT_IMPORT_NAME') {
     if (task.documentId !== sender.documentId || task.state !== 'claimed' || !task.autoRename) throw new Error('当前任务不能自动改名。');
     const attempt = task.nameAttempt + 1;
-    if (attempt > 20) throw new Error('同名仓库较多，请在更多选项中指定其他名称。');
+    if (attempt > 20) throw new Error('已尝试 20 个默认名称，GitHub 仍未确认可用。请检查页面提示或在更多选项中指定名称。');
     const suffix = `-${attempt}`;
     const targetName = F2P.validateRepoName(task.baseName.slice(0, 100 - suffix.length) + suffix);
     await chrome.storage.session.set({ [key]: { ...task, nameAttempt: attempt, targetName } });

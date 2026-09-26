@@ -4,11 +4,11 @@
 
 Chrome 扩展：将 GitHub 仓库复制到独立的私有仓库。支持 GitHub 云端导入，以及生成本地复制脚本。
 
-当前版本：**1.1.1**。需要 Chrome / Chromium 106 或更新版本。
+当前版本：**1.1.2**。需要 Chrome / Chromium 106 或更新版本。
 
 本说明提供中文和英文版本；扩展界面目前为中文。
 
-**[下载 Chrome 扩展安装包（1.1.1 ZIP）](https://github.com/ryumu1008/github-fork-to-private/releases/download/v1.1.1/github-fork-to-private-1.1.1.zip)** · [查看发布版本](https://github.com/ryumu1008/github-fork-to-private/releases/latest)
+**[下载 Chrome 扩展安装包（1.1.2 ZIP）](https://github.com/ryumu1008/github-fork-to-private/releases/download/v1.1.2/github-fork-to-private-1.1.2.zip)** · [查看发布版本](https://github.com/ryumu1008/github-fork-to-private/releases/latest)
 
 ## 安装与更新
 
@@ -17,7 +17,7 @@ Chrome 扩展：将 GitHub 仓库复制到独立的私有仓库。支持 GitHub 
 1. 点击上方下载链接，将 ZIP **解压到一个长期保留的文件夹**。包内附有 `安装说明.txt`。
 2. 在 Chrome 地址栏输入 `chrome://extensions` 并打开，开启右上角「开发者模式」。
 3. 点击「加载已解压的扩展程序」，选择解压后**包含 `manifest.json` 的文件夹**。
-4. 确认扩展版本为 **1.1.1**，刷新已打开的 GitHub 页面即可使用。可在工具栏的拼图按钮里固定本扩展。
+4. 确认扩展版本为 **1.1.2**，刷新已打开的 GitHub 页面即可使用。可在工具栏的拼图按钮里固定本扩展。
 
 安装不需要 Git、Node.js、npm 或构建步骤。Chrome 手动安装需要先解压再加载目录，不能通过双击 ZIP 自动安装；步骤参考 [Chrome 官方说明](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)。安装后不要删除或移动这个文件夹，否则扩展可能无法继续使用。
 
@@ -39,11 +39,13 @@ git clone https://github.com/ryumu1008/github-fork-to-private.git
 
 登录 GitHub，打开想复制的**公开仓库**，点击页面上的「复制到私有」即可。也可以打开工具栏上的插件，点击「一键复制到 Private」。**不用填写源地址、名称、账号或 Token。**
 
-扩展会自动使用当前仓库地址，以「原仓库名-private」命名新仓库，选择 Private，确认 GitHub 已收到填写内容且名称可用后，立即自动提交，不需要再点 Begin import。同名时依次尝试 `-2`、`-3` 等编号，最多尝试 20 个名称，不会覆盖已有仓库。导入由 GitHub 继续处理，可能需要几分钟。
+扩展会自动使用当前仓库地址，以「原仓库名-private」命名新仓库，选择 Private，确认 GitHub 已收到填写内容且名称可用后，立即自动提交，不需要再点 Begin import。默认名称被 GitHub 拒绝时（例如重名），依次尝试 `-2`、`-3` 等编号，最多尝试 20 个名称；只有 GitHub 明确确认名称可用才会提交，不会覆盖已有仓库。导入由 GitHub 继续处理，可能需要几分钟。
 
 需要指定名称、选择上游仓库或使用本地复制时，打开「更多选项」。自行指定的名称冲突时会停止，不擅自改名。默认后缀可在设置中调整。「一键复制」始终自动提交，不受旧的手动确认设置影响；设置里的自动提交开关仅用于「手动链接」模式。请核对导入页上选择的所属账号或组织。
 
-1.1.1 自动恢复“Private 圆点已选但 GitHub 仍显示 Public”的状态，并加强新版 GitHub 导入页兼容：先等待私有状态生效，再逐项填写并核对 GitHub 回写的值和名称检查结果。准备阶段允许有限重试；自动提交前仍重复核对全部信息；手动链接模式的倒计时期间，修改信息会阻止自动提交。刷新已领取任务的导入页后，请回到仓库页重新发起。
+1.1.2 修复网页翻译导致的误报：私有检查读取 GitHub 回写的选项状态，名称检查不再要求固定英文句子。保留“Private 圆点已选但应用仍为 Public”的自动恢复，先确认私有状态，再填写并核对地址和名称。准备阶段允许有限重试；自动提交前重复核对全部信息。手动链接模式倒计时期间，修改信息会阻止自动提交。
+
+更新后请重新加载扩展，确认 **1.1.2**，关闭旧导入页，刷新源仓库页再点击一次。旧导入页不会自动获得新代码。若仍停止，错误横幅会显示版本号，便于确认正在运行哪个版本。
 
 - 只接受由本扩展发起、与当前标签页和页面身份一致的任务。外部构造的链接不能直接发起自动导入。
 - 找不到完整表单、输入发生变化或无法确认 Private 时停止，不盲目提交。
@@ -91,11 +93,11 @@ npm test
 npm run package
 ```
 
-JS 运行文件无第三方依赖；jsdom 仅用于开发测试，不进入扩展 ZIP。打包输出为 `dist/github-fork-to-private-1.1.1.zip`，使用明确的文件清单，不包含 `.git`、测试、开发依赖或本机资料。
+JS 运行文件无第三方依赖；jsdom 仅用于开发测试，不进入扩展 ZIP。打包输出为 `dist/github-fork-to-private-1.1.2.zip`，使用明确的文件清单，不包含 `.git`、测试、开发依赖或本机资料。
 
-80 项回归测试覆盖任务串行领取、标签页/页面身份验证、并发、一键入口、同名改名、受控输入、新旧导入表单、原生按钮、危险输入、历史呈现及 Bash/Zsh 脚本。自动化测试中的 Git 分支/标签检查使用临时本地仓库和隔离的 GitHub 命令替身，不创建真实 GitHub 仓库。
+88 项回归测试覆盖任务串行领取、标签页/页面身份验证、并发、一键入口、同名改名、受控输入、新旧导入表单、原生按钮、危险输入、历史呈现及 Bash/Zsh 脚本。自动化测试中的 Git 分支/标签检查使用临时本地仓库和隔离的 GitHub 命令替身，不创建真实 GitHub 仓库。
 
-1.1.1 已在真实 GitHub 页面复现并验证私有状态恢复，且通过截图中同一个公开仓库的一键复制流程；验证记录见 [1.1.1 验证结果](https://github.com/ryumu1008/github-fork-to-private/blob/main/docs/verification/1.1.1.json)。此前本地复制的真实 GitHub 验证见 [1.0.2 记录](https://github.com/ryumu1008/github-fork-to-private/blob/main/docs/verification/1.0.2.json)。测试不代表未来 GitHub 页面改版仍兼容；真实 LFS 数据迁移尚未验证，每次导入仍须查看 GitHub 的结果。
+1.1.2 已用实际加载的扩展进行真实 GitHub 一键复制验证，包括自动编号，以及在导入页模拟中文翻译和延迟网络请求；这不是对 Chrome 内置翻译或所有翻译插件的逐一兼容认证。验证记录见 [1.1.2 验证结果](https://github.com/ryumu1008/github-fork-to-private/blob/main/docs/verification/1.1.2.json)。此前本地复制的真实 GitHub 验证见 [1.0.2 记录](https://github.com/ryumu1008/github-fork-to-private/blob/main/docs/verification/1.0.2.json)。测试不代表未来 GitHub 页面改版仍兼容；真实 LFS 数据迁移尚未验证，每次导入仍须查看 GitHub 的结果。
 
 ## 许可与反馈
 

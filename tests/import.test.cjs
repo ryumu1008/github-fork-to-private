@@ -4,7 +4,7 @@ const { JSDOM }=require('jsdom');
 const { read,worker,until }=require('./helpers.cjs');
 const base=`<form method="post" action="https://github.com/repositories/imports"><input id="vcs_url" name="vcs_url" required><input id="repository_name" name="repository[name]" required><input id="repository_visibility_public" type="radio" name="repository[visibility]" value="public" checked><input id="repository_visibility_private" type="radio" name="repository[visibility]" value="private"><button type="submit">Import</button></form>`;
 // Structure observed on GitHub's signed-in /new/import page on 2026-09-26.
-const modern=`<react-app app-name="repo-creation" initial-path="/new/import"><form novalidate><input name="The URL for your source repository"><input id="repository-name-input"><input type="radio" name="visibilityGroup" value="public" checked><input type="radio" name="visibilityGroup" value="private"><div class="InfoMessage-module__InfoMessage__fixture">You are creating a public repository in your personal account.</div><button type="submit">Begin import</button></form></react-app>`;
+const modern=`<react-app app-name="repo-creation" initial-path="/new/import"><form novalidate><input name="The URL for your source repository"><input id="repository-name-input"><input type="radio" name="visibilityGroup" value="public" aria-checked="true" checked><input type="radio" name="visibilityGroup" value="private" aria-checked="false"><div class="InfoMessage-module__InfoMessage__fixture">You are creating a public repository in your personal account.</div><button type="submit">Begin import</button></form></react-app>`;
 async function page(options={}){
  const w=worker();if(options.auto===false)w.local.state.settings.autoSubmit=false;
  const a=await w.start('demo-private',options.automatic?{mode:'automatic'}:{});
@@ -42,17 +42,22 @@ async function page(options={}){
    appState[key]=event.target.value;
    event.target.defaultValue=event.target.value;
    if(key==='name'){
+    if(options.retainStatusOnClear && !appState.name)return;
     app.querySelector('#RepoNameInput-is-available')?.remove();app.querySelector('#RepoNameInput-message')?.remove();
-    const status=win.document.createElement('span'),exists=options.takenNames?.includes(appState.name);
+    if(!appState.name){event.target.removeAttribute('aria-invalid');return;}
+    const status=win.document.createElement('span'),exists=options.takenNames?.includes(appState.name)||options.nameError;
+    if(exists)event.target.setAttribute('aria-invalid','true');else event.target.removeAttribute('aria-invalid');
     status.id=exists?'RepoNameInput-message':'RepoNameInput-is-available';
-    status.textContent=exists?`The repository ${appState.name} already exists on this account`:`${appState.name} is available.`;
+    status.textContent=options.nameError||(exists?`The repository ${appState.name} already exists on this account`:`${appState.name} is available.`);
+    if(options.translated && !options.nameError)status.innerHTML=exists?`仓库 <font>${appState.name}</font> 已存在于此账号`:`<font>${appState.name}</font> 可以使用。`;
     app.querySelector('form').append(status);
    }
   });
   app.addEventListener('change',event=>{
    if(event.target.name==='visibilityGroup' && !options.staleReactState){
     appState.visibility=event.target.value;
-    app.querySelector('[class*="InfoMessage-module__InfoMessage__"]').textContent=`You are creating a ${event.target.value} repository in your personal account.`;
+    for(const radio of app.querySelectorAll('[name=visibilityGroup]'))radio.setAttribute('aria-checked',String(radio.value===appState.visibility));
+    app.querySelector('[class*="InfoMessage-module__InfoMessage__"]').textContent=options.translated?'您正在个人账户创建私有仓库。':`You are creating a ${event.target.value} repository in your personal account.`;
     if(options.replaceOnPrivate){
      for(const input of app.querySelectorAll('input[type="text"],#repository-name-input,input[name="The URL for your source repository"]'))input.replaceWith(input.cloneNode(true));
     }
@@ -61,7 +66,7 @@ async function page(options={}){
   });
   app.addEventListener('submit',event=>{githubSubmits++;submittedData.push({...appState});nativeGetPrevented=event.defaultPrevented;event.preventDefault();});
  }
- win.chrome={runtime:{sendMessage:msg=>w.send(msg,w.sender(a.tabId))}};
+ win.chrome={runtime:{getManifest:()=>({version:'1.1.2'}),sendMessage:msg=>w.send(msg,w.sender(a.tabId))}};
  const nativeTimeout=win.setTimeout.bind(win);
  let now=Date.now();win.Date.now=()=>now;
  win.setTimeout=(fn,ms)=>nativeTimeout(()=>{if(ms===100)now+=100;fn();},ms===10000?20:ms===100?0:ms);
@@ -173,7 +178,7 @@ test('one-click collision advances name and history before submitting, without o
 });
 test('custom-name collision stops instead of silently renaming',async()=>{
  const p=await page({html:modern,react:true,takenNames:['demo-private']});try{
-  await p.tick();assert.equal(p.githubSubmits(),0);assert.match(p.win.document.body.textContent,/该仓库名已存在/);
+  await p.tick();assert.equal(p.githubSubmits(),0);assert.match(p.win.document.body.textContent,/该仓库名不可用/);
  }finally{p.dom.window.close();}
 });
 test('rendered application text changed during countdown blocks submission even if DOM property still matches',async()=>{
@@ -198,5 +203,38 @@ test('automatic mode still refuses a permanently stale Public state',async()=>{
 test('submission is blocked during unchecked recovery, then occurs once after Private is confirmed',async()=>{
  const p=await page({html:modern,react:true,checkedButPublic:true,automatic:true,probePreparation:true});try{
   await until(()=>p.githubSubmits()===1);assert.equal(p.preparationProbes(),1);assert.equal(p.submittedData[0].visibility,'private');
+ }finally{p.dom.window.close();}
+});
+
+test('translated and wrapped GitHub text still copies once, including automatic name retries and old auto-off setting',async()=>{
+ const p=await page({html:modern,react:true,translated:true,automatic:true,auto:false,autoRename:true,takenNames:['demo-private','demo-private-2']});try{
+  await until(()=>p.githubSubmits()===1);
+  assert.deepEqual(p.submittedData,[{source:'https://github.com/example/demo.git',name:'demo-private-3',visibility:'private'}]);
+  assert.equal(p.w.local.state.history[0].targetName,'demo-private-3');
+ }finally{p.dom.window.close();}
+});
+for(const corrupt of ['missing aria','public aria','stale name','mixed status','invalid input'])test('rejects inconsistent application acknowledgement: '+corrupt,async()=>{
+ const p=await page({html:modern,react:true});try{
+  const doc=p.win.document;
+  if(corrupt==='missing aria')doc.querySelector('[value="private"]').removeAttribute('aria-checked');
+  if(corrupt==='public aria')doc.querySelector('[value="public"]').setAttribute('aria-checked','true');
+  if(corrupt==='stale name')doc.querySelector('#RepoNameInput-is-available').textContent='demo-private-2 可以使用。';
+  if(corrupt==='mixed status'){const error=doc.createElement('span');error.id='RepoNameInput-message';error.textContent='demo-private rejected';doc.querySelector('form').append(error);}
+  if(corrupt==='invalid input')doc.querySelector('#repository-name-input').setAttribute('aria-invalid','true');
+  await p.tick();assert.equal(p.githubSubmits(),0);assert.equal(p.submits(),0);assert.equal(p.w.local.state.history[0].status,'needs_attention');
+  const banner=doc.querySelector('#f2p-import-banner');assert.equal(banner.getAttribute('translate'),'no');assert.match(banner.textContent,/v1\.1\.2/);
+ }finally{p.dom.window.close();}
+});
+test('network errors without the exact candidate name never trigger automatic renaming or submission',async()=>{
+ const p=await page({html:modern,react:true,automatic:true,autoRename:true,nameError:'检查失败，请稍后重试'});try{
+  assert.equal(p.githubSubmits(),0);assert.equal(p.w.local.state.history[0].targetName,'demo-private');
+  assert.equal(p.w.local.state.history[0].status,'needs_attention');
+ }finally{p.dom.window.close();}
+});
+
+test('a previous error that survives clearing the name prevents another attempt',async()=>{
+ const p=await page({html:modern,react:true,automatic:true,autoRename:true,takenNames:['demo-private'],retainStatusOnClear:true});try{
+  assert.equal(p.githubSubmits(),0);assert.equal(p.w.local.state.history[0].status,'needs_attention');
+  assert.match(p.win.document.body.textContent,/尚未重置名称检查/);
  }finally{p.dom.window.close();}
 });
